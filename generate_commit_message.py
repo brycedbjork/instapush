@@ -24,7 +24,7 @@ def generate_commit_message(prompt):
         max_tokens=50,
         n=1,
         stop=["\n"],
-        temperature=0.5,
+        temperature=0.9,
     )
     message = response.choices[0].message['content'].strip()
     return message
