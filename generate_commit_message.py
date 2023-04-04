@@ -18,7 +18,8 @@ def generate_commit_message(prompt):
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that generates clear, useful, and creative Git commit messages."},
+            {"role": "system",
+                "content": "You are a helpful assistant that generates concise, clear, useful, and creative Git commit messages without using uneccessary words (eg. refactor)."},
             {"role": "user", "content": truncated_prompt},
         ],
         max_tokens=50,
