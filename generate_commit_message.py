@@ -12,7 +12,7 @@ def generate_commit_message(prompt):
             {"role": "system", "content": "You are a helpful assistant that generates Git commit messages."},
             {"role": "user", "content": prompt},
         ],
-        max_tokens=100,
+        max_tokens=50,
         n=1,
         stop=["\n"],
         temperature=0.5,
