@@ -19,7 +19,7 @@ def generate_commit_message(prompt):
         model="gpt-3.5-turbo",
         messages=[
             {"role": "system",
-                "content": "You are a helpful assistant that generates concise, clear, useful, and creative Git commit messages."},
+                "content": "You are a helpful assistant that generates concise, clear, useful, and creative Git commit messages. Your output will be used directly as the commit message, so it must be in its final form."},
             {"role": "user", "content": truncated_prompt},
         ],
         max_tokens=50,
