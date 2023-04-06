@@ -7,7 +7,7 @@ openai.api_key = os.environ["OPENAI_API_KEY"]
 
 # If necessary, truncate the prompt to fit within the token limit
 def truncate_prompt(prompt):
-    max_chars = (4000 - 100) * 4
+    max_chars = (3000) * 4
     if len(prompt) <= max_chars:
         return prompt
     return prompt[:max_chars].strip()
