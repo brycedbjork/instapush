@@ -12,7 +12,7 @@ if [ -z "$1" ]
 then
     prompt="Create a message for the following:\nSummary:\n$git_diff_summary\nChanges:\n$git_diff_changes"
 else
-    prompt="Create a commit message for: $1\nSummary:\n$git_diff_summary\nChanges:\n$git_diff_changes"
+    prompt="Description of commit: $1\nSummary:\n$git_diff_summary\nChanges:\n$git_diff_changes"
 fi
 
 commit_msg=$(python "$script_dir/generate_commit_message.py" "$prompt")
