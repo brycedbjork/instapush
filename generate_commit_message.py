@@ -16,10 +16,10 @@ def truncate_prompt(prompt):
 def generate_commit_message(prompt):
     truncated_prompt = truncate_prompt(prompt)
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system",
-                "content": "You are a helpful assistant that generates concise, clear, useful, and creative Git commit messages. Your output will be used directly as the commit message, so it must be in its final form."},
+                "content": "You are a helpful assistant that generates concise, clear, and useful git commit messages. Your output will be used directly as the commit message, so it must be in its final form. Your message should be concise and to the point (<30 chars).\n\nExamples:\nAdjust search input behavior\nUpdate card styles\nFix mobile layout\nChange pricing\nTrack important user actions\nIntegrate posthog\nIntegrate stripe\n..."},
             {"role": "user", "content": truncated_prompt},
         ],
         max_tokens=50,

@@ -5,7 +5,7 @@
 In the terminal of a git repo, run command `push` to:
 
 - Stage all changes
-- Summarize changes into a commit message (using GPT-3.5-turbo)
+- Summarize changes into a commit message (using GPT-4o-mini)
 - Commit and push changes
 
 ## Setup
