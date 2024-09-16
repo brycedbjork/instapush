@@ -19,7 +19,7 @@ def generate_commit_message(prompt):
         model="gpt-4o-mini",
         messages=[
             {"role": "system",
-                "content": "You are a helpful assistant that generates concise, clear, and useful git commit messages. Your output will be used directly as the commit message, so it must be in its final form. Your message should be concise and to the point (<30 chars). Avoid using vague, blanket words like 'refactor'.\n\nExamples:\nAdjust search input behavior\nUpdate card styles\nFix mobile layout\nChange pricing\nTrack important user actions\nIntegrate posthog\nIntegrate stripe\n..."},
+                "content": "You are a helpful assistant that generates concise, clear, and useful git commit messages. Your output will be used directly as the commit message, so it must be in its final form. Your message should be concise and to the point (<30 chars). Avoid using vague, blanket words like 'refactor'.\n\nExamples:\nAdjust search input behavior\nUpdate card styles\nFix mobile layout\nChange pricing\nTrack important user actions\nIntegrate posthog\nIntegrate stripe\nUpdated create lesson test\nMore resilient test cases\netc..."},
             {"role": "user", "content": truncated_prompt},
         ],
         max_tokens=50,
