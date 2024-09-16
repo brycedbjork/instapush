@@ -15,7 +15,7 @@ def truncate_prompt(prompt):
 
 def generate_commit_message(prompt):
     truncated_prompt = truncate_prompt(prompt)
-    response = openai.ChatCompletion.create(
+    response = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system",
@@ -27,7 +27,7 @@ def generate_commit_message(prompt):
         stop=["\n"],
         temperature=0.9,
     )
-    message = response.choices[0].message['content'].strip()
+    message = response.choices[0].message.content.strip()
     return message
 
 
