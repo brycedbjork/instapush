@@ -21,7 +21,7 @@ git_diff_changes="$(git diff --staged --unified=0)"
 prompt="Create a message for the following:\nSummary:\n$git_diff_summary\nChanges:\n$git_diff_changes"
 
 # generate the commit message using a Python script
-commit_msg=$(python "$script_dir/generate_commit_message.py" "$prompt")
+commit_msg=$(python "$script_dir/summarize.py" "$prompt")
 
 # commit the changes with the generated commit message
 git commit -am "$commit_msg"
