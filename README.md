@@ -17,14 +17,8 @@ In the terminal of a git repo, run command `push` to:
 
 2. Set up Python environment:
    ```bash
-   # Create and activate a virtual environment (recommended)
-   python -m venv venv
-   source venv/bin/activate  # On Unix/macOS
-   # or
-   .\venv\Scripts\activate  # On Windows
-
    # Install dependencies
-   pip install -r requirements.txt
+   pipx install openai
    ```
 
 3. Configure OpenAI API key:
