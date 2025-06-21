@@ -7,9 +7,6 @@ current_dir=$(pwd)
 # change to the current directory
 cd "$current_dir"
 
-# pull the main branch (and bypass the manual merge message)
-git pull origin main --no-edit
-
 # add all changes to the staging area
 git add .
 
