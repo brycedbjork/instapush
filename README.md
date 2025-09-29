@@ -2,11 +2,11 @@
 
 **Stop repeating git commands and writing useless commit messages**
 
-In the terminal of a git repo, run command `push` to:
+In the terminal of a git repo, run:
+- `push` to stage, commit, and push changes
+- `commit` to stage and commit changes (without pushing)
 
-- Stage all changes
-- Summarize changes into a commit message (using GPT-4.1-nano)
-- Commit and push changes
+Both commands automatically summarize changes into a commit message using GPT-4.1-nano.
 
 ## Setup
 
@@ -30,9 +30,10 @@ In the terminal of a git repo, run command `push` to:
    chmod +x /path/to/instapush.sh
    ```
 
-5. Add an alias to your `.bashrc`, `.bash_profile`, or `.zshrc` file:
+5. Add aliases to your `.bashrc`, `.bash_profile`, or `.zshrc` file:
    ```bash
    alias push="/path/to/instapush.sh"
+   alias commit="/path/to/instacommit.sh"
    ```
 
 6. Restart your terminal or source your profile file:
@@ -42,4 +43,5 @@ In the terminal of a git repo, run command `push` to:
 
 ## Usage
 
-Simply run `push` in any git repository to automatically stage, commit, and push your changes with an AI-generated commit message.
+- Run `push` to automatically stage, commit, and push your changes with an AI-generated commit message
+- Run `commit` to automatically stage and commit your changes with an AI-generated commit message (without pushing)
