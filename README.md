@@ -17,8 +17,8 @@ Both commands automatically summarize changes into a commit message using GPT-4.
 
 2. Set up Python environment:
    ```bash
-   # Install dependencies
-   pipx install openai
+   # Verify python3 is available
+   python3 --version
    ```
 
 3. Configure OpenAI API key:
