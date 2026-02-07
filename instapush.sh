@@ -19,10 +19,11 @@ fi
 # add all changes to the staging area
 git add .
 
-# Exit early if there is nothing to commit.
+# If there is nothing new to commit, still push existing local commits.
 if git diff --staged --quiet; then
-  echo "No changes to commit."
-  exit 0
+  echo "No changes to commit. Pushing existing commits (if any)..."
+  git push
+  exit $?
 fi
 
 # get the summary and changes of the staged changes
