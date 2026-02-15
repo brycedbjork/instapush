@@ -10,13 +10,7 @@ import {
   runGit,
 } from "../lib/git.js";
 import { CommandError } from "../lib/process.js";
-import {
-  info,
-  keyValue,
-  renderBanner,
-  summaryBox,
-  withStep,
-} from "../lib/ui.js";
+import { createCommandChecklist, summaryBox } from "../lib/ui.js";
 
 interface MergeOptions {
   target?: string;
@@ -28,26 +22,23 @@ async function abortAndThrow(message: string): Promise<never> {
 }
 
 export async function runMergeCommand(options: MergeOptions): Promise<void> {
-  renderBanner("merge", "Merge with AI conflict resolution.");
+  const checklist = createCommandChecklist(
+    "merge",
+    "Merge target branch with AI conflict handling."
+  );
 
-  await withStep("Checking repository", async () => {
+  await checklist.step("Validate repo", async () => {
     await ensureGitRepository();
   });
 
-  const branch = await withStep(
-    "Reading branch",
-    async () => currentBranchName(),
-    (value) => `Working on ${value}`
+  const branch = await checklist.step("Read branch", async () =>
+    currentBranchName()
   );
 
   const target = options.target ?? `origin/${branch}`;
-  keyValue("Branch", branch);
-  keyValue("Target", target);
 
-  const dirtyWorktree = await withStep(
-    "Checking worktree cleanliness",
-    async () => hasUncommittedChanges(),
-    (value) => (value ? "Uncommitted changes found" : "Working tree is clean")
+  const dirtyWorktree = await checklist.step("Check worktree", async () =>
+    hasUncommittedChanges()
   );
   if (dirtyWorktree) {
     throw new CliError(
@@ -55,19 +46,17 @@ export async function runMergeCommand(options: MergeOptions): Promise<void> {
     );
   }
 
-  await withStep("Fetching origin", async () => {
+  await checklist.step("Fetch origin", async () => {
     await runGit(["fetch", "origin", "--prune"]);
   });
 
   let mergeFailure: CommandError | null = null;
   try {
-    await withStep("Merging target branch", async () => {
+    await checklist.step("Merge target", async () => {
       await runGit(["merge", "--no-edit", target]);
     });
-    summaryBox("Merge Complete", [
-      `Merged ${target} into ${branch}`,
-      "No conflicts detected",
-    ]);
+    checklist.finish();
+    summaryBox("Merge", [`Merged ${target} into ${branch}`, "No conflicts"]);
     return;
   } catch (error) {
     if (error instanceof CommandError) {
@@ -86,12 +75,9 @@ export async function runMergeCommand(options: MergeOptions): Promise<void> {
     throw new CliError(`Merge failed before conflict resolution: ${detail}`);
   }
 
-  info("Conflicts detected. Starting AI resolution pass...");
-
-  const filesToResolve = await withStep(
-    "Collecting conflicted files",
-    async () => conflictedFiles(),
-    (files) => `Found ${files.length} conflicted file(s)`
+  const filesToResolve = await checklist.step(
+    "Find conflicted files",
+    async () => conflictedFiles()
   );
 
   if (filesToResolve.length === 0) {
@@ -100,11 +86,11 @@ export async function runMergeCommand(options: MergeOptions): Promise<void> {
 
   for (const filePath of filesToResolve) {
     try {
-      await withStep(`Resolving ${filePath}`, async () => {
+      await checklist.step(`Resolve ${filePath}`, async () => {
         await resolveConflictsInFile(filePath);
       });
 
-      await withStep(`Staging ${filePath}`, async () => {
+      await checklist.step(`Stage ${filePath}`, async () => {
         await runGit(["add", filePath]);
       });
     } catch (error) {
@@ -120,11 +106,12 @@ export async function runMergeCommand(options: MergeOptions): Promise<void> {
     );
   }
 
-  await withStep("Creating merge commit", async () => {
+  await checklist.step("Create merge commit", async () => {
     await runGit(["commit", "--no-edit"]);
   });
 
-  summaryBox("Merge Complete", [
+  checklist.finish();
+  summaryBox("Merge", [
     `Merged ${target} into ${branch}`,
     `Resolved ${filesToResolve.length} file(s) with AI`,
   ]);

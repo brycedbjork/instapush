@@ -1,22 +1,5 @@
-import {
-  type AiProvider,
-  type ModelTier,
-  suggestedModelsForProvider,
-} from "./config.js";
+import { type AiProvider, suggestedModelsForProvider } from "./config.js";
 import { CliError } from "./errors.js";
-
-const MAX_MODELS_PER_TIER = 12;
-const FAST_HINTS = ["nano", "mini", "haiku", "flash-lite", "flash"];
-const SMART_HINTS = [
-  "opus",
-  "sonnet",
-  "pro",
-  "ultra",
-  "gpt-5",
-  "gpt-4",
-  "o3",
-  "o1",
-];
 
 const OPENAI_EXCLUDED_TOKENS = [
   "audio",
@@ -32,40 +15,7 @@ const OPENAI_EXCLUDED_TOKENS = [
 ];
 const OPENAI_REASONING_MODEL_PATTERN = /^o\d/;
 const GOOGLE_MODEL_PREFIX_PATTERN = /^models\//;
-
-const PREFERRED_PATTERNS: Record<AiProvider, Record<ModelTier, RegExp[]>> = {
-  openai: {
-    smart: [
-      /^gpt-5$/,
-      /^gpt-5-/,
-      /^o3$/,
-      /^o3-/,
-      /^gpt-4\.1$/,
-      /^gpt-4\.1-/,
-      /^gpt-4o$/,
-      /^gpt-4o-/,
-      /^o1$/,
-      /^o1-/,
-    ],
-    fast: [
-      /^gpt-5-nano$/,
-      /^gpt-5-mini$/,
-      /^gpt-4\.1-nano$/,
-      /^gpt-4\.1-mini$/,
-      /^gpt-4o-mini$/,
-      /^o4-mini$/,
-      /^o3-mini$/,
-    ],
-  },
-  anthropic: {
-    smart: [/^claude-.*opus/, /^claude-.*sonnet/],
-    fast: [/^claude-.*haiku/, /^claude-.*sonnet/],
-  },
-  google: {
-    smart: [/^gemini-.*pro/, /^gemini-.*ultra/, /^gemini-.*flash/],
-    fast: [/^gemini-.*flash-lite/, /^gemini-.*flash/],
-  },
-};
+const CHECKPOINT_DATE_SUFFIX_PATTERN = /-\d{8}$/;
 
 interface OpenAiModelListResponse {
   data?: Array<{ id?: string }>;
@@ -94,8 +44,18 @@ function unique(items: string[]): string[] {
   return [...new Set(items)];
 }
 
-function normalizeModelName(model: string): string {
-  return model.trim();
+function normalizeModelName(model: string): string | undefined {
+  const trimmed = model.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return trimmed.replace(CHECKPOINT_DATE_SUFFIX_PATTERN, "");
+}
+
+function sortModels(models: string[]): string[] {
+  return [...models].sort((left, right) =>
+    left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" })
+  );
 }
 
 function parseJson(text: string, providerLabel: string): unknown {
@@ -106,6 +66,16 @@ function parseJson(text: string, providerLabel: string): unknown {
       `${providerLabel} model endpoint returned invalid JSON.`
     );
   }
+}
+
+function finalizeDiscoveredModels(models: string[]): string[] {
+  return sortModels(
+    unique(
+      models
+        .map((model) => normalizeModelName(model))
+        .filter((model): model is string => !!model)
+    )
+  );
 }
 
 async function fetchOpenAiModelIds(apiKey: string): Promise<string[]> {
@@ -123,9 +93,9 @@ async function fetchOpenAiModelIds(apiKey: string): Promise<string[]> {
   }
 
   const parsed = parseJson(text, "OpenAI") as OpenAiModelListResponse;
-  return unique(
+  return finalizeDiscoveredModels(
     (parsed.data ?? [])
-      .map((entry) => normalizeModelName(entry.id ?? ""))
+      .map((entry) => entry.id ?? "")
       .filter((entry) => {
         if (!entry) {
           return false;
@@ -159,9 +129,9 @@ async function fetchAnthropicModelIds(apiKey: string): Promise<string[]> {
   }
 
   const parsed = parseJson(text, "Anthropic") as AnthropicModelListResponse;
-  return unique(
+  return finalizeDiscoveredModels(
     (parsed.data ?? [])
-      .map((entry) => normalizeModelName(entry.id ?? ""))
+      .map((entry) => entry.id ?? "")
       .filter((entry) => entry.toLowerCase().startsWith("claude-"))
   );
 }
@@ -181,15 +151,13 @@ async function fetchGoogleModelIds(apiKey: string): Promise<string[]> {
   }
 
   const parsed = parseJson(text, "Google") as GoogleModelListResponse;
-  return unique(
+  return finalizeDiscoveredModels(
     (parsed.models ?? [])
       .filter((model) =>
         (model.supportedGenerationMethods ?? []).includes("generateContent")
       )
       .map((model) =>
-        normalizeModelName(
-          (model.name ?? "").replace(GOOGLE_MODEL_PREFIX_PATTERN, "")
-        )
+        (model.name ?? "").replace(GOOGLE_MODEL_PREFIX_PATTERN, "")
       )
       .filter((entry) => entry.toLowerCase().startsWith("gemini-"))
   );
@@ -208,54 +176,6 @@ function fetchLiveModelIds(
   return fetchGoogleModelIds(apiKey);
 }
 
-function scoreModel(
-  provider: AiProvider,
-  tier: ModelTier,
-  model: string
-): number {
-  const lower = model.toLowerCase();
-  let score = 0;
-  const patterns = PREFERRED_PATTERNS[provider][tier];
-  const preferredIndex = patterns.findIndex((pattern) => pattern.test(lower));
-  if (preferredIndex >= 0) {
-    score += 1000 - preferredIndex * 25;
-  }
-
-  if (FAST_HINTS.some((token) => lower.includes(token))) {
-    score += tier === "fast" ? 120 : -20;
-  }
-  if (SMART_HINTS.some((token) => lower.includes(token))) {
-    score += tier === "smart" ? 80 : -10;
-  }
-  if (lower.includes("latest")) {
-    score += 6;
-  }
-  if (lower.includes("preview")) {
-    score -= 4;
-  }
-  if (lower.includes("beta")) {
-    score -= 3;
-  }
-  return score;
-}
-
-function rankModels(
-  provider: AiProvider,
-  tier: ModelTier,
-  models: string[]
-): string[] {
-  return [...models]
-    .sort((left, right) => {
-      const scoreDelta =
-        scoreModel(provider, tier, right) - scoreModel(provider, tier, left);
-      if (scoreDelta !== 0) {
-        return scoreDelta;
-      }
-      return left.localeCompare(right);
-    })
-    .slice(0, MAX_MODELS_PER_TIER);
-}
-
 function errorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
     return error.message;
@@ -267,10 +187,17 @@ function fallbackModelCatalog(
   provider: AiProvider,
   warning: string
 ): ProviderModelCatalog {
+  const fallbackModels = sortModels(
+    unique([
+      ...suggestedModelsForProvider(provider, "smart"),
+      ...suggestedModelsForProvider(provider, "fast"),
+    ])
+  );
+
   return {
-    fast: suggestedModelsForProvider(provider, "fast"),
+    fast: fallbackModels,
     liveModelCount: 0,
-    smart: suggestedModelsForProvider(provider, "smart"),
+    smart: fallbackModels,
     source: "fallback",
     warning,
   };
@@ -290,9 +217,9 @@ export async function discoverProviderModelCatalog(
     }
 
     return {
-      fast: rankModels(provider, "fast", modelIds),
+      fast: modelIds,
       liveModelCount: modelIds.length,
-      smart: rankModels(provider, "smart", modelIds),
+      smart: modelIds,
       source: "live",
     };
   } catch (error) {

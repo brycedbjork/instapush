@@ -8,78 +8,66 @@ import {
   shortHeadHash,
   stageAllChanges,
 } from "../lib/git.js";
-import {
-  info,
-  keyValue,
-  renderBanner,
-  summaryBox,
-  withStep,
-} from "../lib/ui.js";
+import { createCommandChecklist, summaryBox } from "../lib/ui.js";
 
 export async function runCommitCommand(): Promise<void> {
-  renderBanner(
+  const checklist = createCommandChecklist(
     "commit",
-    "Stage everything and write a clean AI commit message."
+    "Create an AI commit from current changes."
   );
 
-  await withStep("Checking repository", async () => {
+  await checklist.step("Validate repo", async () => {
     await ensureGitRepository();
   });
 
-  const branch = await withStep(
-    "Reading branch",
-    async () => currentBranchName(),
-    (value) => `Working on ${value}`
+  const branch = await checklist.step("Read branch", async () =>
+    currentBranchName()
   );
-  keyValue("Branch", branch);
 
-  await withStep("Staging local changes", async () => {
+  await checklist.step("Stage changes", async () => {
     await stageAllChanges();
   });
 
-  const stagedChangesExist = await withStep(
-    "Inspecting staged diff",
-    async () => hasStagedChanges(),
-    (value) =>
-      value ? "Staged changes detected" : "No staged changes detected"
+  const stagedChangesExist = await checklist.step(
+    "Check staged changes",
+    async () => hasStagedChanges()
   );
 
   if (!stagedChangesExist) {
-    info("No changes to commit.");
+    checklist.finish();
+    summaryBox("Commit", [`Branch ${branch}`, "No changes to commit"]);
     return;
   }
 
-  const diffSummary = await withStep("Summarizing staged files", async () => {
+  const diffSummary = await checklist.step("Read diff summary", async () => {
     const result = await runGit(["diff", "--staged", "--stat"]);
     return result.stdout;
   });
 
-  const diffChanges = await withStep("Collecting staged patch", async () => {
+  const diffChanges = await checklist.step("Read staged patch", async () => {
     const result = await runGit(["diff", "--staged", "--unified=0"]);
     return result.stdout;
   });
 
-  const commitMessage = await withStep(
-    "Composing commit message with AI",
-    async () => generateCommitMessage(diffSummary, diffChanges),
-    (message) => `Commit message ready: "${message}"`
+  const commitMessage = await checklist.step(
+    "Generate commit message",
+    async () => generateCommitMessage(diffSummary, diffChanges)
   );
 
   if (!commitMessage) {
     throw new CliError("AI returned an empty commit message.");
   }
 
-  await withStep("Creating commit", async () => {
+  await checklist.step("Create commit", async () => {
     await runGit(["commit", "-m", commitMessage]);
   });
 
-  const shortHash = await withStep(
-    "Reading new commit hash",
-    async () => shortHeadHash(),
-    (hash) => `Created commit ${hash}`
+  const shortHash = await checklist.step("Read commit hash", async () =>
+    shortHeadHash()
   );
 
-  summaryBox("Commit Complete", [
+  checklist.finish();
+  summaryBox("Commit", [
     `Branch ${branch}`,
     `Commit ${shortHash}`,
     `Message "${commitMessage}"`,

@@ -1,5 +1,5 @@
 import { currentBranchName, ensureGitRepository, runGit } from "../lib/git.js";
-import { keyValue, renderBanner, summaryBox, withStep } from "../lib/ui.js";
+import { createCommandChecklist, summaryBox } from "../lib/ui.js";
 
 interface PullOptions {
   remote?: string;
@@ -7,33 +7,27 @@ interface PullOptions {
 
 export async function runPullCommand(options: PullOptions): Promise<void> {
   const remote = options.remote ?? "origin";
-  renderBanner(
+  const checklist = createCommandChecklist(
     "pull",
-    `Pull the latest changes from ${remote} for this branch.`
+    `Fetch and pull from ${remote}.`
   );
 
-  await withStep("Checking repository", async () => {
+  await checklist.step("Validate repo", async () => {
     await ensureGitRepository();
   });
 
-  const branch = await withStep(
-    "Reading branch",
-    async () => currentBranchName(),
-    (value) => `Working on ${value}`
+  const branch = await checklist.step("Read branch", async () =>
+    currentBranchName()
   );
-  keyValue("Branch", branch);
-  keyValue("Remote", remote);
 
-  await withStep("Fetching remote changes", async () => {
+  await checklist.step("Fetch remote", async () => {
     await runGit(["fetch", remote, "--prune"]);
   });
 
-  await withStep("Pulling latest changes", async () => {
+  await checklist.step("Pull branch", async () => {
     await runGit(["pull", remote, branch]);
   });
 
-  summaryBox("Pull Complete", [
-    `Pulled ${remote}/${branch}`,
-    "No AI conflict resolution applied",
-  ]);
+  checklist.finish();
+  summaryBox("Pull", [`Pulled ${remote}/${branch}`, "No AI resolution needed"]);
 }

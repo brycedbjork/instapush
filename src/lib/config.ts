@@ -154,7 +154,7 @@ export async function resolveAiConfig(): Promise<JazzConfig> {
 
   if (!apiKey) {
     throw new CliError(
-      `Missing API key for ${provider}. Run 'gj quickstart' or set the provider key env var.`
+      `Missing API key for ${provider}. Run 'gj setup' or set the provider key env var.`
     );
   }
 

@@ -9,6 +9,7 @@ import {
   defaultSmartModelForProvider,
   type JazzConfig,
   type ModelTier,
+  readStoredConfig,
   writeStoredConfig,
 } from "../lib/config.js";
 import { CliError } from "../lib/errors.js";
@@ -28,22 +29,54 @@ const ALIAS_BLOCK_END = "# <<< git-jazz aliases <<<";
 const SUPPORTED_ALIAS_COMMANDS = ["push", "commit", "pull", "merge"] as const;
 const CUSTOM_MODEL_VALUE = "__gj_custom_model__";
 const DEFAULT_ALIAS_SET = [...SUPPORTED_ALIAS_COMMANDS];
+const ALIAS_LINE_PATTERN = /^alias\s+([a-z]+)="gj\s+([a-z]+)"$/;
 
 type SupportedAliasCommand = (typeof SUPPORTED_ALIAS_COMMANDS)[number];
 type AliasMode = "install" | "none";
 
+function isProvider(value: string | undefined): value is AiProvider {
+  return value === "openai" || value === "anthropic" || value === "google";
+}
+
+function providerApiKeyFromEnv(provider: AiProvider): string | undefined {
+  if (provider === "openai") {
+    return process.env.OPENAI_API_KEY;
+  }
+  if (provider === "anthropic") {
+    return process.env.ANTHROPIC_API_KEY;
+  }
+  return process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+}
+
 function modelTierLabel(tier: ModelTier): string {
-  return tier === "smart"
-    ? "smart (merge resolution)"
-    : "fast (commit messages)";
+  return tier === "smart" ? "smart" : "fast";
+}
+
+function modelTierHelperText(tier: ModelTier, provider: AiProvider): string {
+  if (tier === "smart") {
+    return `Used for merge conflict resolution (${provider}).`;
+  }
+  return `Used for commit message generation (${provider}).`;
 }
 
 function aliasCommandLine(alias: SupportedAliasCommand): string {
   return `alias ${alias}="gj ${alias}"`;
 }
 
-function unique(items: string[]): string[] {
+function unique<T>(items: T[]): T[] {
   return [...new Set(items)];
+}
+
+function normalizeString(value: string | undefined): string | undefined {
+  const trimmed = (value || "").trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function maskApiKey(value: string): string {
+  if (value.length <= 6) {
+    return "*".repeat(value.length);
+  }
+  return `${"*".repeat(Math.max(4, value.length - 4))}${value.slice(-4)}`;
 }
 
 async function promptText(
@@ -64,6 +97,22 @@ async function promptText(
   }
 }
 
+async function promptApiKey(
+  provider: AiProvider,
+  existingApiKey: string | undefined
+): Promise<string> {
+  const label = existingApiKey
+    ? `${provider} API key (press Enter to keep ${maskApiKey(existingApiKey)})`
+    : `${provider} API key`;
+
+  const entered = await promptText(label);
+  const apiKey = normalizeString(entered) || existingApiKey;
+  if (!apiKey) {
+    throw new CliError("API key cannot be empty.");
+  }
+  return apiKey;
+}
+
 async function promptModelSelection(
   provider: AiProvider,
   tier: ModelTier,
@@ -74,16 +123,16 @@ async function promptModelSelection(
     (candidate) => candidate.length > 0
   );
   const selected = await promptSelect({
-    helperText: `Provider: ${provider}. Pick a ${modelTierLabel(tier)} model.`,
-    message: `Select ${modelTierLabel(tier)} model`,
+    helperText: modelTierHelperText(tier, provider),
+    message: `Pick ${modelTierLabel(tier)} model`,
     options: [
       ...uniqueCandidates.map((model, index) => ({
         label: model,
         value: model,
-        ...(index === 0 ? { hint: "recommended" } : {}),
+        ...(index === 0 ? { hint: "default" } : {}),
       })),
       {
-        hint: "enter a model id manually",
+        hint: "enter manually",
         label: "custom",
         value: CUSTOM_MODEL_VALUE,
       },
@@ -92,7 +141,7 @@ async function promptModelSelection(
 
   if (selected === CUSTOM_MODEL_VALUE) {
     const custom = await promptText(
-      `Enter custom ${modelTierLabel(tier)} model`,
+      `Custom ${modelTierLabel(tier)} model`,
       defaultModel
     );
     if (!custom) {
@@ -118,6 +167,55 @@ function defaultShellRcFile(): string {
 function renderAliasBlock(aliases: SupportedAliasCommand[]): string {
   const lines = aliases.map((command) => aliasCommandLine(command));
   return [ALIAS_BLOCK_START, ...lines, ALIAS_BLOCK_END].join("\n");
+}
+
+function parseAlias(value: string): SupportedAliasCommand | null {
+  if (SUPPORTED_ALIAS_COMMANDS.includes(value as SupportedAliasCommand)) {
+    return value as SupportedAliasCommand;
+  }
+  return null;
+}
+
+function parseAliasesFromManagedBlock(
+  content: string
+): SupportedAliasCommand[] {
+  const blockMatch = content.match(
+    new RegExp(`${ALIAS_BLOCK_START}\\n([\\s\\S]*?)\\n${ALIAS_BLOCK_END}`)
+  );
+  const managedBlock = blockMatch?.[1];
+  if (!managedBlock) {
+    return [];
+  }
+
+  const aliases: SupportedAliasCommand[] = [];
+  for (const line of managedBlock.split("\n")) {
+    const match = line.trim().match(ALIAS_LINE_PATTERN);
+    const aliasFrom = match?.[1];
+    const aliasTo = match?.[2];
+    if (!(aliasFrom && aliasTo) || aliasFrom !== aliasTo) {
+      continue;
+    }
+    const alias = parseAlias(aliasFrom);
+    if (alias) {
+      aliases.push(alias);
+    }
+  }
+  return unique(aliases);
+}
+
+async function readConfiguredAliases(
+  rcFilePath: string
+): Promise<SupportedAliasCommand[]> {
+  try {
+    const content = await readFile(rcFilePath, "utf8");
+    return parseAliasesFromManagedBlock(content);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    if (message.includes("ENOENT")) {
+      return [];
+    }
+    throw new CliError(`Failed reading shell config ${rcFilePath}: ${message}`);
+  }
 }
 
 function removeManagedAliasBlock(content: string): string {
@@ -163,13 +261,15 @@ async function updateAliases(
   await writeFile(rcFilePath, nextContent, "utf8");
 }
 
-function promptProvider(): Promise<AiProvider> {
+function promptProvider(initialProvider: AiProvider): Promise<AiProvider> {
+  const options: AiProvider[] = ["openai", "anthropic", "google"];
   return promptSelect<AiProvider>({
-    helperText: "Your provider determines API key and available models.",
-    message: "Select AI provider",
+    helperText: "Choose where git-jazz sends AI requests.",
+    initialIndex: options.indexOf(initialProvider),
+    message: "Pick provider",
     options: [
       {
-        hint: "widest ecosystem",
+        hint: "gpt models",
         label: "openai",
         value: "openai",
       },
@@ -187,18 +287,19 @@ function promptProvider(): Promise<AiProvider> {
   });
 }
 
-function promptAliasMode(): Promise<AliasMode> {
+function promptAliasMode(initialMode: AliasMode): Promise<AliasMode> {
   return promptSelect<AliasMode>({
-    helperText: "Aliases let old muscle memory commands call git-jazz.",
-    message: "Choose alias mode",
+    helperText: "Install optional shell shortcuts or keep `gj <command>`.",
+    initialIndex: initialMode === "install" ? 0 : 1,
+    message: "Pick alias mode",
     options: [
       {
-        hint: "recommended",
-        label: "Install shell aliases",
+        hint: "write aliases into rc file",
+        label: "Install aliases",
         value: "install",
       },
       {
-        hint: "type `gj <command>` directly",
+        hint: "no shell aliases",
         label: "No aliases",
         value: "none",
       },
@@ -206,12 +307,14 @@ function promptAliasMode(): Promise<AliasMode> {
   });
 }
 
-async function promptAliases(): Promise<SupportedAliasCommand[]> {
+async function promptAliases(
+  initialAliases: SupportedAliasCommand[]
+): Promise<SupportedAliasCommand[]> {
   const selected = await promptMultiSelect<SupportedAliasCommand>({
     helperText:
-      "Each checked alias writes the exact command shown to your shell rc file.",
-    initialValues: DEFAULT_ALIAS_SET,
-    message: "Select aliases to install",
+      "Checked entries are written exactly as shown into your shell rc file.",
+    initialValues: initialAliases,
+    message: "Pick aliases",
     minimumSelections: 1,
     options: SUPPORTED_ALIAS_COMMANDS.map((alias) => ({
       hint: aliasCommandLine(alias),
@@ -227,17 +330,57 @@ async function promptAliases(): Promise<SupportedAliasCommand[]> {
   return selected;
 }
 
-export async function runQuickstartCommand(): Promise<void> {
-  renderBanner(
-    "quickstart",
-    "Configure AI provider, key, live models, and aliases."
-  );
-
-  const provider = await promptProvider();
-  const apiKey = await promptText(`${provider} API key`);
-  if (!apiKey) {
-    throw new CliError("API key cannot be empty.");
+function storedModelForTier(
+  stored: Awaited<ReturnType<typeof readStoredConfig>>,
+  provider: AiProvider,
+  tier: ModelTier
+): string | undefined {
+  if (!isProvider(stored.provider) || stored.provider !== provider) {
+    return undefined;
   }
+
+  const tierModel =
+    tier === "smart"
+      ? normalizeString(stored.smartModel)
+      : normalizeString(stored.fastModel);
+  return tierModel || normalizeString(stored.model);
+}
+
+function storedApiKeyForProvider(
+  stored: Awaited<ReturnType<typeof readStoredConfig>>,
+  provider: AiProvider
+): string | undefined {
+  const envApiKey = normalizeString(providerApiKeyFromEnv(provider));
+  if (envApiKey) {
+    return envApiKey;
+  }
+  if (!isProvider(stored.provider) || stored.provider !== provider) {
+    return undefined;
+  }
+  return normalizeString(stored.apiKey);
+}
+
+function hasStoredConfig(
+  stored: Awaited<ReturnType<typeof readStoredConfig>>
+): boolean {
+  return (
+    isProvider(stored.provider) &&
+    !!normalizeString(stored.smartModel || stored.fastModel || stored.model)
+  );
+}
+
+export async function runSetupCommand(): Promise<void> {
+  renderBanner("setup", "Update provider, models, API key, and aliases.");
+
+  const stored = await readStoredConfig();
+  const initialProvider = isProvider(stored.provider)
+    ? stored.provider
+    : "openai";
+  const provider = await promptProvider(initialProvider);
+  const apiKey = await promptApiKey(
+    provider,
+    storedApiKeyForProvider(stored, provider)
+  );
 
   const modelCatalog = await withStep(
     "Fetching latest models from provider",
@@ -252,8 +395,11 @@ export async function runQuickstartCommand(): Promise<void> {
     warn(`Live model discovery failed: ${modelCatalog.warning}`);
   }
 
+  const storedSmart = storedModelForTier(stored, provider, "smart");
   const smartDefault =
-    modelCatalog.smart[0] ?? defaultSmartModelForProvider(provider);
+    storedSmart ||
+    modelCatalog.smart[0] ||
+    defaultSmartModelForProvider(provider);
   const smartModel = await promptModelSelection(
     provider,
     "smart",
@@ -261,8 +407,9 @@ export async function runQuickstartCommand(): Promise<void> {
     smartDefault
   );
 
+  const storedFast = storedModelForTier(stored, provider, "fast");
   const fastDefault =
-    modelCatalog.fast[0] ?? defaultFastModelForProvider(provider);
+    storedFast || modelCatalog.fast[0] || defaultFastModelForProvider(provider);
   const fastModel = await promptModelSelection(
     provider,
     "fast",
@@ -270,12 +417,23 @@ export async function runQuickstartCommand(): Promise<void> {
     fastDefault
   );
 
-  const aliasMode = await promptAliasMode();
-  const aliases = aliasMode === "install" ? await promptAliases() : [];
-
   const guessedRc = defaultShellRcFile();
   const rcInput = await promptText("Shell rc file", guessedRc);
   const rcFilePath = path.resolve(rcInput || guessedRc);
+  const configuredAliases = await readConfiguredAliases(rcFilePath);
+  let initialAliasMode: AliasMode = "install";
+  if (configuredAliases.length > 0) {
+    initialAliasMode = "install";
+  } else if (hasStoredConfig(stored)) {
+    initialAliasMode = "none";
+  }
+  const aliasMode = await promptAliasMode(initialAliasMode);
+  const aliases =
+    aliasMode === "install"
+      ? await promptAliases(
+          configuredAliases.length > 0 ? configuredAliases : DEFAULT_ALIAS_SET
+        )
+      : [];
 
   await withStep("Saving AI config", async () => {
     const config: JazzConfig = {
@@ -296,7 +454,7 @@ export async function runQuickstartCommand(): Promise<void> {
   keyValue("Provider", provider);
   keyValue("Smart mdl", smartModel);
   keyValue("Fast mdl", fastModel);
-  keyValue("Models", modelCatalog.source);
+  keyValue("Model src", modelCatalog.source);
 
   const aliasSummary =
     aliases.length > 0
@@ -307,9 +465,11 @@ export async function runQuickstartCommand(): Promise<void> {
       ? `Alias lines: ${aliases.map((alias) => aliasCommandLine(alias)).join(" | ")}`
       : "Alias lines: (none)";
 
-  summaryBox("Quickstart Complete", [
+  summaryBox("Setup Complete", [
     aliasSummary,
     aliasCommands,
     `Run: source ${rcFilePath}`,
   ]);
 }
+
+export const runQuickstartCommand = runSetupCommand;

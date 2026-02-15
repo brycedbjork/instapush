@@ -11,7 +11,8 @@
   "scripts": {
     "build": "bunx tsc -p tsconfig.json",
     "dev": "bun --watch src/cli.ts",
-    "quickstart": "bun src/cli.ts quickstart",
+    "setup": "bun src/cli.ts setup",
+    "quickstart": "bun src/cli.ts setup",
     "test": "bun test --max-concurrency=1 --timeout=20000",
     "test:coverage": "bun test --coverage --max-concurrency=1 --timeout=20000",
     "typecheck": "bunx tsc -p tsconfig.json --noEmit",

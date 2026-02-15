@@ -4,8 +4,8 @@ import { setupIsolatedRuntime } from "./helpers/test-harness.js";
 
 setupIsolatedRuntime();
 
-describe("user promise: quickstart model discovery is current and resilient", () => {
-  test("loads OpenAI models from live provider data", async () => {
+describe("user promise: setup model discovery is current and resilient", () => {
+  test("loads and alphabetizes OpenAI models from live provider data", async () => {
     globalThis.fetch = async () =>
       new Response(
         JSON.stringify({
@@ -25,9 +25,32 @@ describe("user promise: quickstart model discovery is current and resilient", ()
     const catalog = await discoverProviderModelCatalog("openai", "test-key");
     expect(catalog.source).toBe("live");
     expect(catalog.liveModelCount).toBe(3);
-    expect(catalog.smart[0]).toBe("gpt-5");
-    expect(catalog.fast).toContain("gpt-4o-mini");
+    expect(catalog.smart).toEqual(["gpt-4o-mini", "gpt-5", "o3-mini"]);
+    expect(catalog.fast).toEqual(catalog.smart);
     expect(catalog.fast).not.toContain("text-embedding-3-large");
+  });
+
+  test("strips checkpoint dates from Anthropic model ids", async () => {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            { id: "claude-opus-4-5-20251001" },
+            { id: "claude-opus-4-6-20260108" },
+            { id: "claude-opus-4-6" },
+          ],
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        }
+      );
+
+    const catalog = await discoverProviderModelCatalog("anthropic", "test-key");
+    expect(catalog.source).toBe("live");
+    expect(catalog.smart).toEqual(["claude-opus-4-5", "claude-opus-4-6"]);
+    expect(catalog.fast).toEqual(catalog.smart);
+    expect(catalog.smart).not.toContain("claude-opus-4-6-20260108");
   });
 
   test("loads Google models that support generateContent", async () => {
@@ -37,6 +60,10 @@ describe("user promise: quickstart model discovery is current and resilient", ()
           models: [
             {
               name: "models/gemini-2.5-pro",
+              supportedGenerationMethods: ["generateContent"],
+            },
+            {
+              name: "models/gemini-1.5-pro",
               supportedGenerationMethods: ["generateContent"],
             },
             {
@@ -53,7 +80,7 @@ describe("user promise: quickstart model discovery is current and resilient", ()
 
     const catalog = await discoverProviderModelCatalog("google", "test-key");
     expect(catalog.source).toBe("live");
-    expect(catalog.smart[0]).toBe("gemini-2.5-pro");
+    expect(catalog.smart).toEqual(["gemini-1.5-pro", "gemini-2.5-pro"]);
     expect(catalog.smart).not.toContain("text-embedding-004");
   });
 

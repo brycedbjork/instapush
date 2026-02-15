@@ -5,7 +5,8 @@ import { runCommitCommand } from "./commands/commit.js";
 import { runMergeCommand } from "./commands/merge.js";
 import { runPullCommand } from "./commands/pull.js";
 import { runPushCommand } from "./commands/push.js";
-import { runQuickstartCommand } from "./commands/quickstart.js";
+import { runSetupCommand } from "./commands/quickstart.js";
+import { autoUpdateAndMaybeRelaunch } from "./lib/auto-update.js";
 import { CommandError } from "./lib/process.js";
 import { extractErrorMessage, fatal } from "./lib/ui.js";
 
@@ -52,10 +53,13 @@ program
   });
 
 program
-  .command("quickstart")
-  .description("Interactive setup for provider/model/key and aliases.")
+  .command("setup")
+  .description(
+    "Interactive setup/update for provider, models, key, and aliases."
+  )
+  .alias("quickstart")
   .action(async () => {
-    await runQuickstartCommand();
+    await runSetupCommand();
   });
 
 function reportError(error: unknown): never {
@@ -69,4 +73,6 @@ function reportError(error: unknown): never {
   process.exit(1);
 }
 
-program.parseAsync(process.argv).catch(reportError);
+autoUpdateAndMaybeRelaunch()
+  .then(() => program.parseAsync(process.argv))
+  .catch(reportError);

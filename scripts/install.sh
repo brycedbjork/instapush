@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="${GJ_REPO_URL:-https://github.com/brycedbjork/git-jazz.git}"
+REPO_URL="${GJ_REPO_URL:-https://github.com/north-brook/git-jazz.git}"
 INSTALL_DIR="${GJ_INSTALL_DIR:-$HOME/.git-jazz}"
 
 if ! command -v git >/dev/null 2>&1; then
@@ -16,6 +16,7 @@ fi
 
 if [ -d "$INSTALL_DIR/.git" ]; then
   echo "Updating existing install at $INSTALL_DIR"
+  git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
   git -C "$INSTALL_DIR" pull --ff-only
 else
   echo "Cloning git-jazz into $INSTALL_DIR"
@@ -33,5 +34,5 @@ bun run build
 echo "Linking CLI..."
 bun link
 
-echo "Launching quickstart..."
-bun run quickstart
+echo "Launching setup..."
+bun run setup

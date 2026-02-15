@@ -9,6 +9,17 @@ const SUCCESS = chalk.greenBright;
 const WARNING = chalk.yellowBright;
 const DANGER = chalk.redBright;
 const MUTED = chalk.gray;
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+interface ChecklistStepState {
+  label: string;
+  status: "pending" | "running" | "done" | "failed";
+}
+
+interface CommandChecklist {
+  finish: () => void;
+  step: <T>(label: string, task: () => Promise<T>) => Promise<T>;
+}
 
 interface Keypress {
   name?: string;
@@ -108,6 +119,117 @@ export function summaryBox(title: string, lines: string[]): void {
       borderStyle: "round",
     })
   );
+}
+
+function checklistHeaderLines(commandName: string, subtitle: string): string[] {
+  const heading = `${chalk.bold("git-jazz")} ${MUTED("•")} ${ACCENT(commandName)}`;
+  const body = `${heading}\n${MUTED(subtitle)}`;
+  const rendered = boxen(body, {
+    borderColor: "cyan",
+    borderStyle: "round",
+    margin: 0,
+    padding: { left: 1, right: 1, top: 0, bottom: 0 },
+  });
+
+  return ["", ...rendered.split("\n"), ""];
+}
+
+function checklistStepLine(
+  step: ChecklistStepState,
+  spinnerFrame: string
+): string {
+  if (step.status === "done") {
+    return `${SUCCESS("✔")} ${step.label}`;
+  }
+  if (step.status === "failed") {
+    return `${DANGER("✖")} ${step.label}`;
+  }
+  if (step.status === "running") {
+    return `${ACCENT(spinnerFrame)} ${step.label}`;
+  }
+  return `${MUTED("○")} ${MUTED(step.label)}`;
+}
+
+export function createCommandChecklist(
+  commandName: string,
+  subtitle: string
+): CommandChecklist {
+  const output = process.stdout;
+  const interactive = output.isTTY === true;
+  const steps: ChecklistStepState[] = [];
+  let renderedLineCount = 0;
+  let spinnerFrameIndex = 0;
+  let spinnerTimer: NodeJS.Timeout | null = null;
+
+  const render = (): void => {
+    if (!interactive) {
+      return;
+    }
+
+    const frame = SPINNER_FRAMES[spinnerFrameIndex] || "•";
+    const lines = [
+      ...checklistHeaderLines(commandName, subtitle),
+      ...steps.map((step) => checklistStepLine(step, frame)),
+    ];
+    clearPreviousRender(output, renderedLineCount);
+    output.write(`${lines.join("\n")}\n`);
+    renderedLineCount = lines.length;
+  };
+
+  const stopSpinner = (): void => {
+    if (spinnerTimer) {
+      clearInterval(spinnerTimer);
+      spinnerTimer = null;
+    }
+  };
+
+  const startSpinner = (): void => {
+    if (!interactive || spinnerTimer) {
+      return;
+    }
+    spinnerTimer = setInterval(() => {
+      spinnerFrameIndex = (spinnerFrameIndex + 1) % SPINNER_FRAMES.length;
+      render();
+    }, 90);
+  };
+
+  render();
+
+  return {
+    finish: (): void => {
+      stopSpinner();
+      if (!interactive) {
+        return;
+      }
+      clearPreviousRender(output, renderedLineCount);
+      renderedLineCount = 0;
+    },
+    step: async <T>(label: string, task: () => Promise<T>): Promise<T> => {
+      const current: ChecklistStepState = {
+        label,
+        status: "running",
+      };
+      steps.push(current);
+      startSpinner();
+      render();
+
+      try {
+        const result = await task();
+        current.status = "done";
+        const hasRunningSteps = steps.some((step) => step.status === "running");
+        if (!hasRunningSteps) {
+          stopSpinner();
+        }
+        render();
+        return result;
+      } catch (error) {
+        current.status = "failed";
+        stopSpinner();
+        render();
+        throw error;
+      }
+    },
+  };
 }
 
 function clampIndex(index: number, max: number): number {

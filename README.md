@@ -9,23 +9,23 @@ AI-powered git flows with a curated terminal experience.
 
 ## Commands
 
-- `git-jazz commit`
+- `gj commit`
 Stages all local changes and creates an AI-generated commit message.
 
-- `git-jazz push`
+- `gj push`
 Stages all changes, creates an AI commit when needed, then pushes.
 
-- `git-jazz pull`
+- `gj pull`
 Pulls latest changes from `origin` for the current branch.
 
-- `git-jazz merge`
+- `gj merge`
 Merges `origin/<current-branch>` (or a custom target) and auto-resolves conflicts with AI.
 
-- `git-jazz quickstart`
-Interactive setup for:
+- `gj setup`
+Interactive setup/update for:
   - arrow-key UI selection (`↑/↓`, `Enter`)
   - AI provider (`openai`, `anthropic`, `google`)
-  - API key
+  - API key (press Enter to keep existing key)
   - smart model (merge conflict resolution), discovered live from provider APIs
   - fast model (commit message generation), discovered live from provider APIs
   - shell aliases (default: `push`, `commit`, `pull`, `merge`) or `gj`-only mode
@@ -33,10 +33,10 @@ Interactive setup for:
 ## One-line install (recommended)
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/brycedbjork/git-jazz/main/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/north-brook/git-jazz/main/scripts/install.sh)
 ```
 
-This installs `gj` globally, then launches quickstart.
+This installs `gj` globally, auto-updates to latest `main` on launch, then runs setup.
 
 ## Install
 
@@ -55,14 +55,14 @@ bun run build
 bun link
 ```
 
-4. Run quickstart:
+4. Run setup:
 ```bash
-gj quickstart
+gj setup
 ```
 
-## Optional aliases
+## Recommended aliases
 
-If you want old muscle-memory commands:
+Setup can install these by default:
 
 ```bash
 alias push="gj push"
@@ -71,7 +71,16 @@ alias pull="gj pull"
 alias merge="gj merge"
 ```
 
-Or use short commands directly:
+With aliases installed, use:
+
+```bash
+push
+commit
+pull
+merge
+```
+
+Without aliases, use:
 
 ```bash
 gj push
