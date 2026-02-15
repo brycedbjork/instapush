@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --color-jazz-cyan: #22d3ee;
+  --color-jazz-green: #4ade80;
+  --color-jazz-red: #f87171;
+  --color-jazz-yellow: #facc15;
+  --color-jazz-gray: #6b7280;
+  --color-jazz-dark: #0a0a0f;
+  --color-jazz-surface: #111118;
+  --color-jazz-border: #1e1e2e;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background-color: var(--color-jazz-dark);
+  color: #e4e4e7;
+}

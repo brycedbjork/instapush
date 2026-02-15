@@ -156,7 +156,7 @@ async function pullLatest(repoRoot: string): Promise<boolean> {
   return result.code === 0;
 }
 
-async function installAndBuild(repoRoot: string): Promise<void> {
+async function installDependencies(repoRoot: string): Promise<void> {
   const installResult = await runCommand("bun", ["install"], {
     allowFailure: true,
     cwd: repoRoot,
@@ -165,14 +165,6 @@ async function installAndBuild(repoRoot: string): Promise<void> {
     warn(
       "Auto-update: dependency install failed; continuing with current runtime."
     );
-  }
-
-  const buildResult = await runCommand("bun", ["run", "build"], {
-    allowFailure: true,
-    cwd: repoRoot,
-  });
-  if (buildResult.code !== 0) {
-    warn("Auto-update: build failed; continuing with current runtime.");
   }
 }
 
@@ -218,7 +210,7 @@ export async function autoUpdateInstalledVersion(): Promise<boolean> {
     return false;
   }
 
-  await installAndBuild(INSTALL_ROOT);
+  await installDependencies(INSTALL_ROOT);
   return true;
 }
 

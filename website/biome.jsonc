@@ -1,0 +1,16 @@
+{
+  "root": false,
+  "$schema": "https://biomejs.dev/schemas/2.4.0/schema.json",
+  "extends": ["ultracite/biome/core", "ultracite/biome/next"],
+  "files": {
+    "includes": [
+      "app/**/*.ts",
+      "app/**/*.tsx",
+      "components/**/*.ts",
+      "components/**/*.tsx",
+      "lib/**/*.ts",
+      "*.json",
+      "*.md"
+    ]
+  }
+}

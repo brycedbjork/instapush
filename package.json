@@ -5,8 +5,8 @@
   "type": "module",
   "packageManager": "bun@1.2.3",
   "bin": {
-    "gj": "./dist/cli.js",
-    "git-jazz": "./dist/cli.js"
+    "gj": "./src/cli.ts",
+    "git-jazz": "./src/cli.ts"
   },
   "scripts": {
     "build": "bunx tsc -p tsconfig.json",

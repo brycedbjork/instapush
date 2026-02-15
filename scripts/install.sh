@@ -28,9 +28,6 @@ cd "$INSTALL_DIR"
 echo "Installing dependencies..."
 bun install
 
-echo "Building CLI..."
-bun run build
-
 echo "Linking CLI..."
 bun link
 

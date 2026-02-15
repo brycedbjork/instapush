@@ -45,17 +45,12 @@ This installs `gj` globally, auto-updates to latest `main` on launch, then runs 
 bun install
 ```
 
-2. Build:
-```bash
-bun run build
-```
-
-3. Link globally:
+2. Link globally:
 ```bash
 bun link
 ```
 
-4. Run setup:
+3. Run setup:
 ```bash
 gj setup
 ```
