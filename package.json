@@ -1,0 +1,39 @@
+{
+  "name": "git-jazz",
+  "version": "0.1.0",
+  "description": "Beautiful AI-powered git workflows for commit, push, pull, and merge.",
+  "type": "module",
+  "packageManager": "bun@1.2.3",
+  "bin": {
+    "gj": "./dist/cli.js",
+    "git-jazz": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "bunx tsc -p tsconfig.json",
+    "dev": "bun --watch src/cli.ts",
+    "quickstart": "bun src/cli.ts quickstart",
+    "test": "bun test --max-concurrency=1 --timeout=20000",
+    "test:coverage": "bun test --coverage --max-concurrency=1 --timeout=20000",
+    "typecheck": "bunx tsc -p tsconfig.json --noEmit",
+    "lint": "ultracite check",
+    "format": "ultracite fix",
+    "check": "bun run lint && bun run typecheck",
+    "prepare": "husky"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "dependencies": {
+    "boxen": "^8.0.1",
+    "chalk": "^5.3.0",
+    "commander": "^14.0.0",
+    "ora": "^8.1.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@types/node": "^22.10.0",
+    "husky": "^9.1.7",
+    "typescript": "^5.7.2",
+    "ultracite": "^7.1.5"
+  }
+}

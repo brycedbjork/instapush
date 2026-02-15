@@ -1,47 +1,93 @@
-# Instapush
+# git-jazz
 
-**Stop repeating git commands and writing useless commit messages**
+AI-powered git flows with a curated terminal experience.
 
-In the terminal of a git repo, run:
-- `push` to stage, commit, and push changes
-- `commit` to stage and commit changes (without pushing)
+`git-jazz` replaces noisy raw git logs with guided, styled steps so users always know:
+- what is happening now
+- what succeeded
+- what failed and why
 
-Both commands automatically summarize changes into a commit message using GPT-4.1-nano.
+## Commands
 
-## Setup
+- `git-jazz commit`
+Stages all local changes and creates an AI-generated commit message.
 
-1. Clone this repo to your computer:
-   ```bash
-   git clone github.com/brycedbjork/instapush.git
-   ```
+- `git-jazz push`
+Stages all changes, creates an AI commit when needed, then pushes.
 
-2. Set up Python environment:
-   ```bash
-   # Verify python3 is available
-   python3 --version
-   ```
+- `git-jazz pull`
+Pulls latest changes from `origin` for the current branch.
 
-3. Configure OpenAI API key:
-   - Add `export OPENAI_API_KEY="your_api_key"` to your `.bashrc`, `.bash_profile`, or `.zshrc` file
-   - Or set it temporarily in your current shell: `export OPENAI_API_KEY="your_api_key"`
+- `git-jazz merge`
+Merges `origin/<current-branch>` (or a custom target) and auto-resolves conflicts with AI.
 
-4. Make the script executable:
-   ```bash
-   chmod +x /path/to/instapush.sh
-   ```
+- `git-jazz quickstart`
+Interactive setup for:
+  - AI provider (`openai`, `anthropic`, `google`)
+  - API key
+  - smart model (merge conflict resolution)
+  - fast model (commit message generation)
+  - shell aliases (default: `push`, `commit`, `pull`, `merge`) or `gj`-only mode
 
-5. Add aliases to your `.bashrc`, `.bash_profile`, or `.zshrc` file:
-   ```bash
-   alias push="/path/to/instapush.sh"
-   alias commit="/path/to/instacommit.sh"
-   ```
+## One-line install (recommended)
 
-6. Restart your terminal or source your profile file:
-   ```bash
-   source ~/.bashrc  # or ~/.bash_profile or ~/.zshrc
-   ```
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/brycedbjork/git-jazz/main/scripts/install.sh)
+```
 
-## Usage
+This installs `gj` globally, then launches quickstart.
 
-- Run `push` to automatically stage, commit, and push your changes with an AI-generated commit message
-- Run `commit` to automatically stage and commit your changes with an AI-generated commit message (without pushing)
+## Install
+
+1. Install dependencies:
+```bash
+bun install
+```
+
+2. Build:
+```bash
+bun run build
+```
+
+3. Link globally:
+```bash
+bun link
+```
+
+4. Run quickstart:
+```bash
+gj quickstart
+```
+
+## Optional aliases
+
+If you want old muscle-memory commands:
+
+```bash
+alias push="gj push"
+alias commit="gj commit"
+alias pull="gj pull"
+alias merge="gj merge"
+```
+
+Or use short commands directly:
+
+```bash
+gj push
+gj commit
+gj pull
+gj merge
+```
+
+## Dev Tooling
+
+- TypeScript + Commander CLI architecture
+- Biome via Ultracite ruleset (`biome.jsonc`)
+- Husky pre-commit hook running `bun run check`
+
+## Testing
+
+- Run full suite: `bun run test`
+- Run with coverage: `bun run test:coverage`
+
+The suite includes unit tests for provider/model config and AI routing, plus integration tests for `commit`, `push`, `pull`, and `merge` against real temporary git repositories.

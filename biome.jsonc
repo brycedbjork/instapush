@@ -1,0 +1,7 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.0/schema.json",
+  "extends": ["ultracite/biome/core"],
+  "files": {
+    "includes": ["src/**/*.ts", "*.json", "*.md", ".husky/pre-commit"]
+  }
+}
