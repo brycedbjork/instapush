@@ -6,7 +6,7 @@ export function Footer() {
   return (
     <footer className="mx-auto max-w-5xl border-jazz-border border-t px-4 py-16 sm:px-6 lg:px-8">
       <p className="text-jazz-gray text-sm">
-        git-jazz is open source.{" "}
+        ♪ GitJazz is open source.{" "}
         <a
           className="text-jazz-cyan underline underline-offset-4 transition-colors hover:text-white"
           href="https://github.com/north-brook/git-jazz"

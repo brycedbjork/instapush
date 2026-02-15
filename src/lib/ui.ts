@@ -52,7 +52,7 @@ interface MultiSelectPromptOptions<T> {
 }
 
 export function renderBanner(commandName: string, subtitle: string): void {
-  const heading = `${chalk.bold("git-jazz")} ${MUTED("•")} ${ACCENT(commandName)}`;
+  const heading = `${chalk.bold("♪ GitJazz")} ${MUTED("•")} ${ACCENT(commandName)}`;
   const body = `${heading}\n${MUTED(subtitle)}`;
   console.log("");
   console.log(
@@ -122,7 +122,7 @@ export function summaryBox(title: string, lines: string[]): void {
 }
 
 function checklistHeaderLines(commandName: string, subtitle: string): string[] {
-  const heading = `${chalk.bold("git-jazz")} ${MUTED("•")} ${ACCENT(commandName)}`;
+  const heading = `${chalk.bold("♪ GitJazz")} ${MUTED("•")} ${ACCENT(commandName)}`;
   const body = `${heading}\n${MUTED(subtitle)}`;
   const rendered = boxen(body, {
     borderColor: "cyan",

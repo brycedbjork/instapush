@@ -13,7 +13,7 @@ import { extractErrorMessage, fatal } from "./lib/ui.js";
 const program = new Command();
 
 program
-  .name("git-jazz")
+  .name("♪ GitJazz")
   .description("Beautiful AI-powered git commit/push/pull/merge workflows.")
   .version("0.1.0");
 

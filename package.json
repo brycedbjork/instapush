@@ -1,12 +1,12 @@
 {
-  "name": "git-jazz",
+  "name": "gitjazz",
   "version": "0.1.0",
   "description": "Beautiful AI-powered git workflows for commit, push, pull, and merge.",
   "type": "module",
   "packageManager": "bun@1.2.3",
   "bin": {
     "gj": "./src/cli.ts",
-    "git-jazz": "./src/cli.ts"
+    "gitjazz": "./src/cli.ts"
   },
   "scripts": {
     "build": "bunx tsc -p tsconfig.json",

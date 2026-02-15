@@ -24,8 +24,8 @@ import {
   withStep,
 } from "../lib/ui.js";
 
-const ALIAS_BLOCK_START = "# >>> git-jazz aliases >>>";
-const ALIAS_BLOCK_END = "# <<< git-jazz aliases <<<";
+const ALIAS_BLOCK_START = "# >>> GitJazz aliases >>>";
+const ALIAS_BLOCK_END = "# <<< GitJazz aliases <<<";
 const SUPPORTED_ALIAS_COMMANDS = ["push", "commit", "pull", "merge"] as const;
 const CUSTOM_MODEL_VALUE = "__gj_custom_model__";
 const DEFAULT_ALIAS_SET = [...SUPPORTED_ALIAS_COMMANDS];
@@ -264,7 +264,7 @@ async function updateAliases(
 function promptProvider(initialProvider: AiProvider): Promise<AiProvider> {
   const options: AiProvider[] = ["openai", "anthropic", "google"];
   return promptSelect<AiProvider>({
-    helperText: "Choose where git-jazz sends AI requests.",
+    helperText: "Choose where ♪ GitJazz sends AI requests.",
     initialIndex: options.indexOf(initialProvider),
     message: "Pick provider",
     options: [

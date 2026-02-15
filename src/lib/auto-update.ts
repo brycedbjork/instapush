@@ -204,7 +204,7 @@ export async function autoUpdateInstalledVersion(): Promise<boolean> {
     return false;
   }
 
-  info("Auto-update: installing latest git-jazz from origin/main...");
+  info("Auto-update: installing latest ♪ GitJazz from origin/main...");
   if (!(await pullLatest(INSTALL_ROOT))) {
     warn("Auto-update: pull --ff-only failed.");
     return false;

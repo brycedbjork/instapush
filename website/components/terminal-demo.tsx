@@ -367,7 +367,7 @@ export function TerminalDemo() {
           {/* Banner */}
           {phase !== "idle" && phase !== "typing" && (
             <div className="mt-4 rounded border border-jazz-cyan/30 px-3 py-2">
-              <span className="font-bold">git-jazz</span>
+              <span className="font-bold">♪ GitJazz</span>
               <span className="mx-1 text-jazz-gray">•</span>
               <span className="text-jazz-cyan">{config.name}</span>
               <div className="text-jazz-gray">{config.subtitle}</div>

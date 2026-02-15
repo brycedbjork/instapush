@@ -6,7 +6,7 @@ export function Hero() {
   return (
     <section className="mx-auto max-w-5xl px-4 pt-24 pb-16 sm:px-6 sm:pt-32 sm:pb-20 lg:px-8">
       <h1 className="font-bold text-4xl tracking-tight sm:text-5xl lg:text-6xl">
-        <span className="text-jazz-cyan">git</span>-jazz
+        ♪ <span className="text-jazz-cyan">Git</span>Jazz
       </h1>
       <p className="mt-4 max-w-2xl text-jazz-gray text-lg sm:text-xl">
         AI-powered git workflows. Beautiful terminal output.

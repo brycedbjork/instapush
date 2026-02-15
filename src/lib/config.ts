@@ -32,7 +32,7 @@ const MODEL_PRESETS: Record<AiProvider, { smart: string[]; fast: string[] }> = {
   },
 };
 
-const CONFIG_DIR = path.join(homedir(), ".config", "git-jazz");
+const CONFIG_DIR = path.join(homedir(), ".config", "gitjazz");
 
 function currentConfigPath(): string {
   return process.env.GJ_CONFIG_PATH

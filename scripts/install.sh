@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_URL="${GJ_REPO_URL:-https://github.com/north-brook/git-jazz.git}"
-INSTALL_DIR="${GJ_INSTALL_DIR:-$HOME/.git-jazz}"
+INSTALL_DIR="${GJ_INSTALL_DIR:-$HOME/.gitjazz}"
 
 if ! command -v git >/dev/null 2>&1; then
   echo "Error: git is required." >&2
@@ -19,7 +19,7 @@ if [ -d "$INSTALL_DIR/.git" ]; then
   git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
   git -C "$INSTALL_DIR" pull --ff-only
 else
-  echo "Cloning git-jazz into $INSTALL_DIR"
+  echo "Cloning ♪ GitJazz into $INSTALL_DIR"
   git clone "$REPO_URL" "$INSTALL_DIR"
 fi
 

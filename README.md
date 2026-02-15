@@ -1,8 +1,8 @@
-# git-jazz
+# ♪ GitJazz
 
 AI-powered git flows with a curated terminal experience.
 
-`git-jazz` replaces noisy raw git logs with guided, styled steps so users always know:
+`♪ GitJazz` replaces noisy raw git logs with guided, styled steps so users always know:
 - what is happening now
 - what succeeded
 - what failed and why
