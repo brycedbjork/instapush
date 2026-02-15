@@ -23,10 +23,11 @@ Merges `origin/<current-branch>` (or a custom target) and auto-resolves conflict
 
 - `git-jazz quickstart`
 Interactive setup for:
+  - arrow-key UI selection (`↑/↓`, `Enter`)
   - AI provider (`openai`, `anthropic`, `google`)
   - API key
-  - smart model (merge conflict resolution)
-  - fast model (commit message generation)
+  - smart model (merge conflict resolution), discovered live from provider APIs
+  - fast model (commit message generation), discovered live from provider APIs
   - shell aliases (default: `push`, `commit`, `pull`, `merge`) or `gj`-only mode
 
 ## One-line install (recommended)

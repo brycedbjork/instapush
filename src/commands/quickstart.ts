@@ -9,78 +9,99 @@ import {
   defaultSmartModelForProvider,
   type JazzConfig,
   type ModelTier,
-  suggestedModelsForProvider,
   writeStoredConfig,
 } from "../lib/config.js";
 import { CliError } from "../lib/errors.js";
-import { keyValue, renderBanner, summaryBox, withStep } from "../lib/ui.js";
+import { discoverProviderModelCatalog } from "../lib/provider-models.js";
+import {
+  keyValue,
+  promptMultiSelect,
+  promptSelect,
+  renderBanner,
+  summaryBox,
+  warn,
+  withStep,
+} from "../lib/ui.js";
 
 const ALIAS_BLOCK_START = "# >>> git-jazz aliases >>>";
 const ALIAS_BLOCK_END = "# <<< git-jazz aliases <<<";
 const SUPPORTED_ALIAS_COMMANDS = ["push", "commit", "pull", "merge"] as const;
+const CUSTOM_MODEL_VALUE = "__gj_custom_model__";
+const DEFAULT_ALIAS_SET = [...SUPPORTED_ALIAS_COMMANDS];
 
 type SupportedAliasCommand = (typeof SUPPORTED_ALIAS_COMMANDS)[number];
-
-function parseProvider(value: string): AiProvider | null {
-  if (value === "1" || value.toLowerCase() === "openai") {
-    return "openai";
-  }
-  if (value === "2" || value.toLowerCase() === "anthropic") {
-    return "anthropic";
-  }
-  if (value === "3" || value.toLowerCase() === "google") {
-    return "google";
-  }
-  return null;
-}
+type AliasMode = "install" | "none";
 
 function modelTierLabel(tier: ModelTier): string {
   return tier === "smart"
-    ? "smart model for merge conflict resolution"
-    : "fast model for commit message generation";
+    ? "smart (merge resolution)"
+    : "fast (commit messages)";
+}
+
+function aliasCommandLine(alias: SupportedAliasCommand): string {
+  return `alias ${alias}="gj ${alias}"`;
+}
+
+function unique(items: string[]): string[] {
+  return [...new Set(items)];
+}
+
+async function promptText(
+  message: string,
+  defaultValue?: string
+): Promise<string> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  try {
+    const suffix = defaultValue ? ` [${defaultValue}]` : "";
+    const value = (await rl.question(`${message}${suffix}: `)).trim();
+    return value || defaultValue || "";
+  } finally {
+    rl.close();
+  }
 }
 
 async function promptModelSelection(
-  rl: ReturnType<typeof createInterface>,
   provider: AiProvider,
   tier: ModelTier,
+  candidates: string[],
   defaultModel: string
 ): Promise<string> {
-  const candidates = suggestedModelsForProvider(provider, tier);
-  const promptLines = [
-    `Select ${modelTierLabel(tier)}:`,
-    ...candidates.map((model, index) =>
-      index === 0
-        ? `  ${index + 1}) ${model} (recommended)`
-        : `  ${index + 1}) ${model}`
-    ),
-    `  ${candidates.length + 1}) custom`,
-    "Choice [1]: ",
-  ];
+  const uniqueCandidates = unique([defaultModel, ...candidates]).filter(
+    (candidate) => candidate.length > 0
+  );
+  const selected = await promptSelect({
+    helperText: `Provider: ${provider}. Pick a ${modelTierLabel(tier)} model.`,
+    message: `Select ${modelTierLabel(tier)} model`,
+    options: [
+      ...uniqueCandidates.map((model, index) => ({
+        label: model,
+        value: model,
+        ...(index === 0 ? { hint: "recommended" } : {}),
+      })),
+      {
+        hint: "enter a model id manually",
+        label: "custom",
+        value: CUSTOM_MODEL_VALUE,
+      },
+    ],
+  });
 
-  const selection = (await rl.question(promptLines.join("\n"))).trim() || "1";
-  const parsedChoice = Number.parseInt(selection, 10);
-
-  if (Number.isInteger(parsedChoice)) {
-    if (parsedChoice >= 1 && parsedChoice <= candidates.length) {
-      const selected = candidates[parsedChoice - 1];
-      if (!selected) {
-        throw new CliError("Invalid model selection.");
-      }
-      return selected;
+  if (selected === CUSTOM_MODEL_VALUE) {
+    const custom = await promptText(
+      `Enter custom ${modelTierLabel(tier)} model`,
+      defaultModel
+    );
+    if (!custom) {
+      throw new CliError("Model cannot be empty.");
     }
-    if (parsedChoice === candidates.length + 1) {
-      const custom = (
-        await rl.question(
-          `Enter custom ${modelTierLabel(tier)} [${defaultModel}]: `
-        )
-      ).trim();
-      return custom || defaultModel;
-    }
-    throw new CliError("Invalid model selection.");
+    return custom;
   }
 
-  return selection;
+  return selected;
 }
 
 function defaultShellRcFile(): string {
@@ -94,29 +115,8 @@ function defaultShellRcFile(): string {
   return path.join(homedir(), ".zshrc");
 }
 
-function unique<T>(items: T[]): T[] {
-  return [...new Set(items)];
-}
-
-function parseAliases(input: string): SupportedAliasCommand[] {
-  const requested = unique(
-    input
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0)
-  );
-
-  const selected: SupportedAliasCommand[] = [];
-  for (const value of requested) {
-    if (SUPPORTED_ALIAS_COMMANDS.includes(value as SupportedAliasCommand)) {
-      selected.push(value as SupportedAliasCommand);
-    }
-  }
-  return selected;
-}
-
 function renderAliasBlock(aliases: SupportedAliasCommand[]): string {
-  const lines = aliases.map((command) => `alias ${command}="gj ${command}"`);
+  const lines = aliases.map((command) => aliasCommandLine(command));
   return [ALIAS_BLOCK_START, ...lines, ALIAS_BLOCK_END].join("\n");
 }
 
@@ -163,113 +163,153 @@ async function updateAliases(
   await writeFile(rcFilePath, nextContent, "utf8");
 }
 
+function promptProvider(): Promise<AiProvider> {
+  return promptSelect<AiProvider>({
+    helperText: "Your provider determines API key and available models.",
+    message: "Select AI provider",
+    options: [
+      {
+        hint: "widest ecosystem",
+        label: "openai",
+        value: "openai",
+      },
+      {
+        hint: "claude models",
+        label: "anthropic",
+        value: "anthropic",
+      },
+      {
+        hint: "gemini models",
+        label: "google",
+        value: "google",
+      },
+    ],
+  });
+}
+
+function promptAliasMode(): Promise<AliasMode> {
+  return promptSelect<AliasMode>({
+    helperText: "Aliases let old muscle memory commands call git-jazz.",
+    message: "Choose alias mode",
+    options: [
+      {
+        hint: "recommended",
+        label: "Install shell aliases",
+        value: "install",
+      },
+      {
+        hint: "type `gj <command>` directly",
+        label: "No aliases",
+        value: "none",
+      },
+    ],
+  });
+}
+
+async function promptAliases(): Promise<SupportedAliasCommand[]> {
+  const selected = await promptMultiSelect<SupportedAliasCommand>({
+    helperText:
+      "Each checked alias writes the exact command shown to your shell rc file.",
+    initialValues: DEFAULT_ALIAS_SET,
+    message: "Select aliases to install",
+    minimumSelections: 1,
+    options: SUPPORTED_ALIAS_COMMANDS.map((alias) => ({
+      hint: aliasCommandLine(alias),
+      label: alias,
+      value: alias,
+    })),
+  });
+
+  if (selected.length === 0) {
+    throw new CliError("Select at least one alias, or choose No aliases.");
+  }
+
+  return selected;
+}
+
 export async function runQuickstartCommand(): Promise<void> {
   renderBanner(
     "quickstart",
-    "Configure AI provider, key, smart/fast models, and aliases."
+    "Configure AI provider, key, live models, and aliases."
   );
 
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
+  const provider = await promptProvider();
+  const apiKey = await promptText(`${provider} API key`);
+  if (!apiKey) {
+    throw new CliError("API key cannot be empty.");
+  }
+
+  const modelCatalog = await withStep(
+    "Fetching latest models from provider",
+    async () => discoverProviderModelCatalog(provider, apiKey),
+    (catalog) =>
+      catalog.source === "live"
+        ? `Found ${catalog.liveModelCount} live model(s)`
+        : "Falling back to built-in model presets"
+  );
+
+  if (modelCatalog.source === "fallback" && modelCatalog.warning) {
+    warn(`Live model discovery failed: ${modelCatalog.warning}`);
+  }
+
+  const smartDefault =
+    modelCatalog.smart[0] ?? defaultSmartModelForProvider(provider);
+  const smartModel = await promptModelSelection(
+    provider,
+    "smart",
+    modelCatalog.smart,
+    smartDefault
+  );
+
+  const fastDefault =
+    modelCatalog.fast[0] ?? defaultFastModelForProvider(provider);
+  const fastModel = await promptModelSelection(
+    provider,
+    "fast",
+    modelCatalog.fast,
+    fastDefault
+  );
+
+  const aliasMode = await promptAliasMode();
+  const aliases = aliasMode === "install" ? await promptAliases() : [];
+
+  const guessedRc = defaultShellRcFile();
+  const rcInput = await promptText("Shell rc file", guessedRc);
+  const rcFilePath = path.resolve(rcInput || guessedRc);
+
+  await withStep("Saving AI config", async () => {
+    const config: JazzConfig = {
+      provider,
+      smartModel,
+      fastModel,
+      apiKey,
+    };
+    await writeStoredConfig(config);
   });
 
-  try {
-    const providerPrompt = [
-      "Select AI provider:",
-      "  1) openai",
-      "  2) anthropic",
-      "  3) google",
-      "Choice [1]: ",
-    ].join("\n");
+  await withStep("Updating shell aliases", async () => {
+    await updateAliases(rcFilePath, aliases);
+  });
 
-    const providerInput = (await rl.question(providerPrompt)).trim();
-    const provider = parseProvider(providerInput || "1");
-    if (!provider) {
-      throw new CliError("Invalid provider selection.");
-    }
+  keyValue("Config", configPath());
+  keyValue("Shell rc", rcFilePath);
+  keyValue("Provider", provider);
+  keyValue("Smart mdl", smartModel);
+  keyValue("Fast mdl", fastModel);
+  keyValue("Models", modelCatalog.source);
 
-    const apiKey = (await rl.question(`${provider} API key: `)).trim();
-    if (!apiKey) {
-      throw new CliError("API key cannot be empty.");
-    }
+  const aliasSummary =
+    aliases.length > 0
+      ? `Installed aliases: ${aliases.join(", ")}`
+      : "No aliases installed. Use 'gj <command>'.";
+  const aliasCommands =
+    aliases.length > 0
+      ? `Alias lines: ${aliases.map((alias) => aliasCommandLine(alias)).join(" | ")}`
+      : "Alias lines: (none)";
 
-    const defaultSmartModel = defaultSmartModelForProvider(provider);
-    const smartModel = await promptModelSelection(
-      rl,
-      provider,
-      "smart",
-      defaultSmartModel
-    );
-
-    const defaultFastModel = defaultFastModelForProvider(provider);
-    const fastModel = await promptModelSelection(
-      rl,
-      provider,
-      "fast",
-      defaultFastModel
-    );
-
-    const aliasModeInput = (
-      await rl.question(
-        [
-          "Alias mode:",
-          "  1) Install shell aliases (recommended)",
-          "  2) No aliases, use 'gj <command>' directly",
-          "Choice [1]: ",
-        ].join("\n")
-      )
-    ).trim();
-    const aliasMode = aliasModeInput || "1";
-    if (aliasMode !== "1" && aliasMode !== "2") {
-      throw new CliError("Invalid alias mode selection.");
-    }
-
-    let aliases: SupportedAliasCommand[] = [];
-    if (aliasMode === "1") {
-      const defaultAliasList = SUPPORTED_ALIAS_COMMANDS.join(",");
-      const aliasInput = await rl.question(
-        `Aliases to install [${defaultAliasList}]: `
-      );
-      aliases = parseAliases(aliasInput.trim() || defaultAliasList);
-      if (aliases.length === 0) {
-        throw new CliError(
-          "No valid aliases selected. Allowed: push, commit, pull, merge."
-        );
-      }
-    }
-
-    const guessedRc = defaultShellRcFile();
-    const rcInput = await rl.question(`Shell rc file [${guessedRc}]: `);
-    const rcFilePath = path.resolve(rcInput.trim() || guessedRc);
-
-    await withStep("Saving AI config", async () => {
-      const config: JazzConfig = {
-        provider,
-        smartModel,
-        fastModel,
-        apiKey,
-      };
-      await writeStoredConfig(config);
-    });
-
-    await withStep("Updating shell aliases", async () => {
-      await updateAliases(rcFilePath, aliases);
-    });
-
-    keyValue("Config", configPath());
-    keyValue("Shell rc", rcFilePath);
-    keyValue("Provider", provider);
-    keyValue("Smart mdl", smartModel);
-    keyValue("Fast mdl", fastModel);
-
-    summaryBox("Quickstart Complete", [
-      aliases.length > 0
-        ? `Installed aliases: ${aliases.join(", ")}`
-        : "No aliases installed. Use 'gj <command>'.",
-      `Run: source ${rcFilePath}`,
-    ]);
-  } finally {
-    rl.close();
-  }
+  summaryBox("Quickstart Complete", [
+    aliasSummary,
+    aliasCommands,
+    `Run: source ${rcFilePath}`,
+  ]);
 }
