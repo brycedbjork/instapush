@@ -13,7 +13,7 @@ const pairs = [
     pain: 'git add . && git commit -m "..." && git push — every single time.',
     solution: (
       <>
-        One command. <code className="font-mono text-jazz-cyan">gj push</code>.
+        One command. <code className="font-mono text-jazz-cyan">push</code>.
         Done.
       </>
     ),

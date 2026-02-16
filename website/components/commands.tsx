@@ -1,18 +1,18 @@
 const commands = [
   {
-    name: "gj commit",
+    name: "commit",
     description: "Stage all changes and generate an AI-written commit message.",
   },
   {
-    name: "gj push",
+    name: "push",
     description: "Stage, commit with AI, and push — all in a single command.",
   },
   {
-    name: "gj pull",
+    name: "pull",
     description: "Fetch and pull with visual feedback and conflict detection.",
   },
   {
-    name: "gj merge",
+    name: "merge",
     description:
       "Merge branches with AI-powered conflict resolution, file by file.",
   },

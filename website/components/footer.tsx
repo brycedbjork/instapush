@@ -1,28 +1,49 @@
-import { CopyButton } from "./copy-button";
+import { Github } from "lucide-react";
 
-const installCommand = "curl -fsSL https://gitjazz.com/install | bash";
+function NorthBrookLogo() {
+  return (
+    <svg
+      className="opacity-60"
+      fill="none"
+      height="19"
+      viewBox="0 0 608 729"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <title>North Brook</title>
+      <path
+        d="M272.233 0L380.334 0.263884L608 698.047L505.351 728.442L505.116 728.719L504.934 728.565L503.656 728.95L502.932 726.841L251.13 510.664L286.698 419.566L442.541 550.633L320.343 194.075L112.224 729L0 691.634L272.233 0Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 export function Footer() {
   return (
-    <footer className="mx-auto max-w-5xl border-jazz-border border-t px-4 py-16 sm:px-6 lg:px-8">
-      <p className="text-jazz-gray text-sm">
-        ♪ GitJazz is open source.{" "}
+    <footer className="border-jazz-border border-t">
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-8 sm:px-6 lg:px-8">
         <a
-          className="text-jazz-cyan underline underline-offset-4 transition-colors hover:text-white"
-          href="https://github.com/north-brook/git-jazz"
+          className="flex items-center gap-2 text-jazz-gray text-sm transition-colors hover:text-white"
+          href="https://www.northbrook.com"
           rel="noopener noreferrer"
           target="_blank"
         >
-          View on GitHub
+          <NorthBrookLogo />
+          North Brook
         </a>
-      </p>
-      <div className="mt-4 inline-flex items-center gap-2 rounded-lg border border-jazz-border bg-jazz-surface px-4 py-2">
-        <code className="font-mono text-jazz-green text-sm">
-          {installCommand}
-        </code>
-        <CopyButton text={installCommand} />
+        <div className="flex items-center gap-5 text-jazz-gray text-sm">
+          <a
+            className="flex items-center gap-1.5 transition-colors hover:text-white"
+            href="https://github.com/north-brook/git-jazz"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <Github size={14} />
+            GitHub
+          </a>
+        </div>
       </div>
-      <p className="mt-4 text-jazz-gray text-xs">MIT License</p>
     </footer>
   );
 }

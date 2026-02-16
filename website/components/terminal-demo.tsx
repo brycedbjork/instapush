@@ -17,7 +17,7 @@ interface CommandConfig {
 const COMMANDS: CommandConfig[] = [
   {
     name: "commit",
-    command: "gj commit",
+    command: "commit",
     subtitle: "Create an AI commit from current changes.",
     steps: [
       { label: "Validate repo", delay: 400 },
@@ -41,7 +41,7 @@ const COMMANDS: CommandConfig[] = [
   },
   {
     name: "push",
-    command: "gj push",
+    command: "push",
     subtitle: "Push current branch with an AI commit when needed.",
     steps: [
       { label: "Validate repo", delay: 400 },
@@ -68,7 +68,7 @@ const COMMANDS: CommandConfig[] = [
   },
   {
     name: "pull",
-    command: "gj pull",
+    command: "pull",
     subtitle: "Fetch and pull from origin.",
     steps: [
       { label: "Validate repo", delay: 400 },
@@ -83,7 +83,7 @@ const COMMANDS: CommandConfig[] = [
   },
   {
     name: "merge",
-    command: "gj merge feature/auth",
+    command: "merge feature/auth",
     subtitle: "Merge target branch with AI conflict handling.",
     steps: [
       { label: "Validate repo", delay: 400 },
@@ -110,7 +110,7 @@ function getTotalDuration(cfg: CommandConfig): number {
   const typingMs = cfg.command.length * 90; // ~90ms avg per char
   const bannerPause = 400 + 600; // after typing + banner→steps
   const stepsMs = cfg.steps.reduce((sum, s) => sum + s.delay, 0);
-  const summaryPause = 400;
+  const summaryPause = 600;
   return typingMs + bannerPause + stepsMs + summaryPause + HOLD_AFTER_DONE_MS;
 }
 
@@ -138,6 +138,7 @@ export function TerminalDemo() {
   const [steps, setSteps] = useState<StepState[]>([]);
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [showSummary, setShowSummary] = useState(false);
+  const [stepsComplete, setStepsComplete] = useState(false);
   const [progress, setProgress] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const hasStarted = useRef(false);
@@ -158,6 +159,7 @@ export function TerminalDemo() {
       setSteps(cfg.steps.map((s) => ({ label: s.label, status: "hidden" })));
       setSpinnerFrame(0);
       setShowSummary(false);
+      setStepsComplete(false);
       setProgress(0);
       abortRef.current = false;
       hasStarted.current = true;
@@ -266,15 +268,18 @@ export function TerminalDemo() {
     runSteps();
   }, [phase, config.steps]);
 
-  // Show summary
+  // Show summary – fade out steps, then fade in summary
   useEffect(() => {
     if (phase !== "summary") {
       return;
     }
+    // Immediately start fading out the steps
+    setStepsComplete(true);
+    // After the fade-out completes, swap to the summary
     const timeout = setTimeout(() => {
       setShowSummary(true);
       setPhase("done");
-    }, 400);
+    }, 600);
     return () => clearTimeout(timeout);
   }, [phase]);
 
@@ -352,7 +357,7 @@ export function TerminalDemo() {
         </div>
 
         {/* Terminal content — fixed height to prevent layout shift */}
-        <div className="h-[420px] overflow-y-auto p-4 font-mono text-sm leading-relaxed sm:h-[460px] sm:p-6 sm:text-base">
+        <div className="h-[480px] overflow-y-auto p-4 font-mono text-sm leading-relaxed sm:h-[520px] sm:p-6 sm:text-base">
           {/* Command line */}
           <div className="flex items-center">
             <span className="text-jazz-gray">$</span>
@@ -374,9 +379,15 @@ export function TerminalDemo() {
             </div>
           )}
 
-          {/* Steps */}
-          {phase !== "idle" && phase !== "typing" && (
-            <div className="mt-4 space-y-1">
+          {/* Steps – fade out when complete */}
+          {phase !== "idle" && phase !== "typing" && !showSummary && (
+            <div
+              className="mt-4 space-y-1"
+              style={{
+                opacity: stepsComplete ? 0 : 1,
+                transition: "opacity 500ms ease-in-out",
+              }}
+            >
               {steps.map(
                 (step) =>
                   step.status !== "hidden" && (
@@ -406,9 +417,12 @@ export function TerminalDemo() {
             </div>
           )}
 
-          {/* Summary box */}
+          {/* Summary box – fade in */}
           {showSummary && (
-            <div className="mt-4 rounded border border-jazz-green/30 px-3 py-2">
+            <div
+              className="mt-4 rounded border border-jazz-green/30 px-3 py-2"
+              style={{ animation: "fadeIn 500ms ease-in-out" }}
+            >
               <div className="font-bold">{config.summary.title}</div>
               <div className="mt-1 space-y-0.5 text-jazz-gray">
                 {config.summary.lines.map((line) => (
