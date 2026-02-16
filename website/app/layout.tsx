@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { inter, jetbrainsMono } from "@/lib/fonts";
 import "./globals.css";
 
-const title = "♪ GitJazz — AI-powered git workflows";
+const title = "GitJazz — AI-powered git workflows";
 const description =
   "Beautiful AI-powered git commit, push, pull, and merge. One command replaces noisy git output with guided terminal experiences.";
 
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     title,
     description,
     url: "https://gitjazz.com",
-    siteName: "♪ GitJazz",
+    siteName: "GitJazz",
     images: ["/og.png"],
     type: "website",
   },
