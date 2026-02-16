@@ -109,12 +109,22 @@ describe("user promise: command workflows are safe and predictable", () => {
     await commitAll(repos.peer, "peer update");
     await git(repos.peer, ["push", "origin", "main"]);
 
-    await withRepoCwd(repos.local, async () => {
-      await runPullCommand({ remote: "origin" });
-    });
+    const logLines: string[] = [];
+    const originalLog = console.log;
+    console.log = (...args: unknown[]) => {
+      logLines.push(args.join(" "));
+    };
+    try {
+      await withRepoCwd(repos.local, async () => {
+        await runPullCommand({ remote: "origin" });
+      });
+    } finally {
+      console.log = originalLog;
+    }
 
     const localFile = await readFile(path.join(repos.local, "app.txt"), "utf8");
     expect(localFile).toBe("peer-change\n");
+    expect(logLines.some((line) => line.includes("peer update"))).toBe(true);
   });
 
   test("runPullCommand supports custom remote names", async () => {
