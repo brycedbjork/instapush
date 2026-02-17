@@ -1,6 +1,6 @@
 import { CopyButton } from "./copy-button";
 
-const installCommand = "curl -fsSL https://gitjazz.com/install | bash";
+const installCommand = "bash <(curl -fsSL https://gitjazz.com/install)";
 
 export function Hero() {
   return (

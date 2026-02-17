@@ -32,4 +32,11 @@ echo "Linking CLI..."
 bun link
 
 echo "Launching setup..."
-bun run setup
+if [ -t 0 ]; then
+  bun run setup
+elif [ -t 1 ] && [ -r /dev/tty ]; then
+  bun run setup </dev/tty
+else
+  echo "Skipping setup: no interactive terminal detected."
+  echo "Run 'gj setup' manually."
+fi
