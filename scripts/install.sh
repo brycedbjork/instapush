@@ -28,11 +28,11 @@ bun install --silent
 bun link --silent
 
 if [ -t 0 ] && [ -t 1 ]; then
-  bun src/cli.ts setup
+  GJ_PLAIN_PROMPTS=1 bun src/cli.ts setup
 elif { exec 3<>/dev/tty; } 2>/dev/null; then
+  GJ_PLAIN_PROMPTS=1 bun src/cli.ts setup <&3
   exec 3<&-
   exec 3>&-
-  bun src/cli.ts setup </dev/tty
 else
   echo "No interactive terminal detected. Run 'gj setup' manually."
 fi

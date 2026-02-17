@@ -1,4 +1,5 @@
 import { emitKeypressEvents } from "node:readline";
+import { createInterface as createPromptInterface } from "node:readline/promises";
 import boxen from "boxen";
 import chalk from "chalk";
 import ora from "ora";
@@ -10,6 +11,7 @@ const WARNING = chalk.yellowBright;
 const DANGER = chalk.redBright;
 const MUTED = chalk.gray;
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const ONE_BASED_NUMBER_PATTERN = /^\d+$/;
 
 interface ChecklistStepState {
   label: string;
@@ -285,6 +287,152 @@ function normalizeOutput(
   return output ?? process.stdout;
 }
 
+function usePlainPrompts(): boolean {
+  return process.env.GJ_PLAIN_PROMPTS === "1";
+}
+
+async function promptLine(
+  input: NodeJS.ReadStream,
+  output: NodeJS.WriteStream,
+  message: string
+): Promise<string> {
+  const rl = createPromptInterface({ input, output });
+  try {
+    return (await rl.question(message)).trim();
+  } finally {
+    rl.close();
+  }
+}
+
+function parseOneBasedIndex(value: string, max: number): number | null {
+  if (!ONE_BASED_NUMBER_PATTERN.test(value)) {
+    return null;
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (parsed < 1 || parsed > max) {
+    return null;
+  }
+  return parsed - 1;
+}
+
+async function promptSelectLineMode<T>(
+  options: SelectPromptOptions<T>,
+  initialIndex: number,
+  input: NodeJS.ReadStream,
+  output: NodeJS.WriteStream
+): Promise<T> {
+  output.write(`${chalk.bold(options.message)}\n`);
+  if (options.helperText) {
+    output.write(`${MUTED(options.helperText)}\n`);
+  }
+
+  for (const [optionIndex, option] of options.options.entries()) {
+    const marker = optionIndex === initialIndex ? "*" : " ";
+    const hint = option.hint ? ` ${MUTED(option.hint)}` : "";
+    output.write(`${marker} ${optionIndex + 1}. ${option.label}${hint}\n`);
+  }
+
+  while (true) {
+    const answer = await promptLine(
+      input,
+      output,
+      `Choose 1-${options.options.length} [${initialIndex + 1}]: `
+    );
+    if (answer.length === 0) {
+      const fallback = options.options[initialIndex];
+      if (!fallback) {
+        throw new CliError("No selectable option available.");
+      }
+      return fallback.value;
+    }
+
+    const selectedIndex = parseOneBasedIndex(answer, options.options.length);
+    if (selectedIndex === null) {
+      output.write(
+        `${WARNING("▲")} Enter a number from 1 to ${options.options.length}.\n`
+      );
+      continue;
+    }
+
+    const selected = options.options[selectedIndex];
+    if (!selected) {
+      throw new CliError("No option selected.");
+    }
+    return selected.value;
+  }
+}
+
+function parseMultiSelectInput(value: string, max: number): Set<number> | null {
+  const selectedIndexes = new Set<number>();
+  for (const token of value.split(",")) {
+    const trimmed = token.trim();
+    if (trimmed.length === 0) {
+      continue;
+    }
+    const parsedIndex = parseOneBasedIndex(trimmed, max);
+    if (parsedIndex === null) {
+      return null;
+    }
+    selectedIndexes.add(parsedIndex);
+  }
+  return selectedIndexes;
+}
+
+function selectedIndexesToInput(selectedIndexes: Set<number>): string {
+  return [...selectedIndexes]
+    .sort((left, right) => left - right)
+    .map((index) => `${index + 1}`)
+    .join(",");
+}
+
+async function promptMultiSelectLineMode<T>(
+  options: MultiSelectPromptOptions<T>,
+  selectedIndexes: Set<number>,
+  minimumSelections: number,
+  input: NodeJS.ReadStream,
+  output: NodeJS.WriteStream
+): Promise<T[]> {
+  output.write(`${chalk.bold(options.message)}\n`);
+  if (options.helperText) {
+    output.write(`${MUTED(options.helperText)}\n`);
+  }
+
+  for (const [optionIndex, option] of options.options.entries()) {
+    const checked = selectedIndexes.has(optionIndex) ? "[x]" : "[ ]";
+    const hint = option.hint ? ` ${MUTED(option.hint)}` : "";
+    output.write(`${checked} ${optionIndex + 1}. ${option.label}${hint}\n`);
+  }
+
+  const defaultInput = selectedIndexesToInput(selectedIndexes);
+  while (true) {
+    const answer = await promptLine(
+      input,
+      output,
+      `Choose comma-separated numbers${defaultInput ? ` [${defaultInput}]` : ""}: `
+    );
+    const nextIndexes =
+      answer.length === 0
+        ? new Set<number>(selectedIndexes)
+        : parseMultiSelectInput(answer, options.options.length);
+
+    if (!nextIndexes) {
+      output.write(
+        `${WARNING("▲")} Enter comma-separated values from 1 to ${options.options.length}.\n`
+      );
+      continue;
+    }
+
+    if (nextIndexes.size < minimumSelections) {
+      output.write(
+        `${WARNING("▲")} Select at least ${minimumSelections} option(s).\n`
+      );
+      continue;
+    }
+
+    return collectSelectedValues(options.options, nextIndexes);
+  }
+}
+
 function applyMove(index: number, size: number, keyName: string): number {
   if (keyName === "up" || keyName === "k") {
     return (index - 1 + size) % size;
@@ -338,6 +486,10 @@ export function promptSelect<T>(options: SelectPromptOptions<T>): Promise<T> {
     options.initialIndex ?? 0,
     options.options.length
   );
+
+  if (usePlainPrompts() && input.isTTY && output.isTTY) {
+    return promptSelectLineMode(options, initialIndex, input, output);
+  }
 
   if (!(input.isTTY && output.isTTY)) {
     const fallback = options.options[initialIndex];
@@ -430,6 +582,16 @@ export function promptMultiSelect<T>(
         selectedIndexes.add(index);
       }
     }
+  }
+
+  if (usePlainPrompts() && input.isTTY && output.isTTY) {
+    return promptMultiSelectLineMode(
+      options,
+      selectedIndexes,
+      minimumSelections,
+      input,
+      output
+    );
   }
 
   if (!(input.isTTY && output.isTTY)) {
