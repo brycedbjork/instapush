@@ -4,8 +4,11 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET(): Promise<Response> {
-  const response = await fetch(INSTALL_SCRIPT_URL, {
+  const response = await fetch(`${INSTALL_SCRIPT_URL}?v=${Date.now()}`, {
     cache: "no-store",
+    headers: {
+      "Cache-Control": "no-cache",
+    },
   });
 
   if (!response.ok) {
