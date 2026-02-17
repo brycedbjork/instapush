@@ -15,28 +15,24 @@ if ! command -v bun >/dev/null 2>&1; then
 fi
 
 if [ -d "$INSTALL_DIR/.git" ]; then
-  echo "Updating existing install at $INSTALL_DIR"
   git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
-  git -C "$INSTALL_DIR" pull --ff-only
+  git -C "$INSTALL_DIR" pull --ff-only --quiet
 else
-  echo "Cloning ♪ GitJazz into $INSTALL_DIR"
-  git clone "$REPO_URL" "$INSTALL_DIR"
+  git clone --quiet "$REPO_URL" "$INSTALL_DIR"
 fi
 
 cd "$INSTALL_DIR"
 
-echo "Installing dependencies..."
-bun install
+bun install --silent
 
-echo "Linking CLI..."
-bun link
+bun link --silent
 
-echo "Launching setup..."
-if [ -t 0 ]; then
-  bun run setup
-elif [ -t 1 ] && [ -r /dev/tty ]; then
-  bun run setup </dev/tty
+if [ -t 0 ] && [ -t 1 ]; then
+  bun src/cli.ts setup
+elif { exec 3<>/dev/tty; } 2>/dev/null; then
+  exec 3<&-
+  exec 3>&-
+  bun src/cli.ts setup </dev/tty
 else
-  echo "Skipping setup: no interactive terminal detected."
-  echo "Run 'gj setup' manually."
+  echo "No interactive terminal detected. Run 'gj setup' manually."
 fi
