@@ -1,5 +1,6 @@
 const INSTALL_SCRIPT_URL =
   "https://raw.githubusercontent.com/north-brook/git-jazz/main/scripts/install.sh";
+export const revalidate = 0;
 
 export async function GET(): Promise<Response> {
   const response = await fetch(INSTALL_SCRIPT_URL, {
