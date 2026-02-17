@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_URL="${GJ_REPO_URL:-https://github.com/north-brook/git-jazz.git}"
 INSTALL_DIR="${GJ_INSTALL_DIR:-$HOME/.gitjazz}"
 IS_TTY=0
+IS_UTF8=0
 STEP_LOG="$(mktemp -t gitjazz-install.XXXXXX)"
 trap 'rm -f "$STEP_LOG"' EXIT
 
@@ -26,12 +27,11 @@ else
 fi
 
 if printf "%s" "${LC_ALL:-${LANG:-}}" | grep -qi "utf-8"; then
-  SYMBOL_INFO="●"
+  IS_UTF8=1
   SYMBOL_OK="✔"
   SYMBOL_FAIL="✖"
   SYMBOL_ARROW="→"
 else
-  SYMBOL_INFO="*"
   SYMBOL_OK="[ok]"
   SYMBOL_FAIL="[x]"
   SYMBOL_ARROW="->"
@@ -59,27 +59,47 @@ run_step() {
     local pid
     local frame
     local frame_index=0
+    local frame_count=4
     "$@" >"$STEP_LOG" 2>&1 &
     pid=$!
 
+    if [ "$IS_UTF8" -eq 1 ]; then
+      frame_count=10
+    fi
+
     while kill -0 "$pid" 2>/dev/null; do
-      case "$frame_index" in
-        0) frame='|' ;;
-        1) frame='/' ;;
-        2) frame='-' ;;
-        *) frame='\' ;;
-      esac
-      printf "\r%s%s%s %s %s" "$COLOR_CYAN" "$SYMBOL_INFO" "$COLOR_RESET" "$label" "$frame"
-      frame_index=$(((frame_index + 1) % 4))
-      sleep 0.08
+      if [ "$IS_UTF8" -eq 1 ]; then
+        case "$frame_index" in
+          0) frame='⠋' ;;
+          1) frame='⠙' ;;
+          2) frame='⠹' ;;
+          3) frame='⠸' ;;
+          4) frame='⠼' ;;
+          5) frame='⠴' ;;
+          6) frame='⠦' ;;
+          7) frame='⠧' ;;
+          8) frame='⠇' ;;
+          *) frame='⠏' ;;
+        esac
+      else
+        case "$frame_index" in
+          0) frame='|' ;;
+          1) frame='/' ;;
+          2) frame='-' ;;
+          *) frame='\' ;;
+        esac
+      fi
+      printf "\r%s%s%s %s\033[K" "$COLOR_CYAN" "$frame" "$COLOR_RESET" "$label"
+      frame_index=$(((frame_index + 1) % frame_count))
+      sleep 0.09
     done
 
     if wait "$pid"; then
-      printf "\r%s%s%s %s\n" "$COLOR_GREEN" "$SYMBOL_OK" "$COLOR_RESET" "$label"
+      printf "\r%s%s%s %s\033[K\n" "$COLOR_GREEN" "$SYMBOL_OK" "$COLOR_RESET" "$label"
       return 0
     fi
 
-    printf "\r%s%s%s %s\n" "$COLOR_RED" "$SYMBOL_FAIL" "$COLOR_RESET" "$label" >&2
+    printf "\r%s%s%s %s\033[K\n" "$COLOR_RED" "$SYMBOL_FAIL" "$COLOR_RESET" "$label" >&2
     cat "$STEP_LOG" >&2
     return 1
   fi
