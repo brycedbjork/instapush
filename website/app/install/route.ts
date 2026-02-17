@@ -3,7 +3,7 @@ const INSTALL_SCRIPT_URL =
 
 export async function GET(): Promise<Response> {
   const response = await fetch(INSTALL_SCRIPT_URL, {
-    next: { revalidate: 300 },
+    cache: "no-store",
   });
 
   if (!response.ok) {
@@ -15,7 +15,7 @@ export async function GET(): Promise<Response> {
   return new Response(script, {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "public, max-age=300, s-maxage=300",
+      "Cache-Control": "no-store",
     },
   });
 }
