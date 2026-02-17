@@ -36,7 +36,8 @@ Interactive setup/update for:
 bash <(curl -fsSL https://raw.githubusercontent.com/north-brook/git-jazz/main/scripts/install.sh)
 ```
 
-This installs `gj` globally, auto-updates to latest `main` on launch, then runs setup.
+This installs `gj` globally and auto-updates to latest `main` on launch.
+Then run `gj setup` to start the interactive setup wizard.
 
 ## Install
 

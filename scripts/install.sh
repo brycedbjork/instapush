@@ -3,36 +3,120 @@ set -euo pipefail
 
 REPO_URL="${GJ_REPO_URL:-https://github.com/north-brook/git-jazz.git}"
 INSTALL_DIR="${GJ_INSTALL_DIR:-$HOME/.gitjazz}"
+IS_TTY=0
+STEP_LOG="$(mktemp -t gitjazz-install.XXXXXX)"
+trap 'rm -f "$STEP_LOG"' EXIT
 
-if ! command -v git >/dev/null 2>&1; then
-  echo "Error: git is required." >&2
-  exit 1
+if [ -t 1 ]; then
+  IS_TTY=1
 fi
 
-if ! command -v bun >/dev/null 2>&1; then
-  echo "Error: bun is required (https://bun.sh)." >&2
-  exit 1
-fi
-
-if [ -d "$INSTALL_DIR/.git" ]; then
-  git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
-  git -C "$INSTALL_DIR" pull --ff-only --quiet
+if [ "$IS_TTY" -eq 1 ]; then
+  COLOR_RESET=$'\033[0m'
+  COLOR_BOLD=$'\033[1m'
+  COLOR_CYAN=$'\033[36m'
+  COLOR_GREEN=$'\033[32m'
+  COLOR_RED=$'\033[31m'
 else
-  git clone --quiet "$REPO_URL" "$INSTALL_DIR"
+  COLOR_RESET=""
+  COLOR_BOLD=""
+  COLOR_CYAN=""
+  COLOR_GREEN=""
+  COLOR_RED=""
 fi
 
-cd "$INSTALL_DIR"
-
-bun install --silent
-
-bun link --silent
-
-if [ -t 0 ] && [ -t 1 ]; then
-  GJ_PLAIN_PROMPTS=1 bun src/cli.ts setup
-elif { exec 3<>/dev/tty; } 2>/dev/null; then
-  GJ_PLAIN_PROMPTS=1 bun src/cli.ts setup <&3
-  exec 3<&-
-  exec 3>&-
+if printf "%s" "${LC_ALL:-${LANG:-}}" | grep -qi "utf-8"; then
+  SYMBOL_INFO="●"
+  SYMBOL_OK="✔"
+  SYMBOL_FAIL="✖"
+  SYMBOL_ARROW="→"
 else
-  echo "No interactive terminal detected. Run 'gj setup' manually."
+  SYMBOL_INFO="*"
+  SYMBOL_OK="[ok]"
+  SYMBOL_FAIL="[x]"
+  SYMBOL_ARROW="->"
 fi
+
+fail() {
+  echo "${COLOR_RED}${SYMBOL_FAIL}${COLOR_RESET} $1" >&2
+  exit 1
+}
+
+require_command() {
+  local binary="$1"
+  local message="$2"
+  if ! command -v "$binary" >/dev/null 2>&1; then
+    fail "$message"
+  fi
+}
+
+run_step() {
+  local label="$1"
+  shift
+  : >"$STEP_LOG"
+
+  if [ "$IS_TTY" -eq 1 ]; then
+    local pid
+    local frame
+    local frame_index=0
+    "$@" >"$STEP_LOG" 2>&1 &
+    pid=$!
+
+    while kill -0 "$pid" 2>/dev/null; do
+      case "$frame_index" in
+        0) frame='|' ;;
+        1) frame='/' ;;
+        2) frame='-' ;;
+        *) frame='\' ;;
+      esac
+      printf "\r%s%s%s %s %s" "$COLOR_CYAN" "$SYMBOL_INFO" "$COLOR_RESET" "$label" "$frame"
+      frame_index=$(((frame_index + 1) % 4))
+      sleep 0.08
+    done
+
+    if wait "$pid"; then
+      printf "\r%s%s%s %s\n" "$COLOR_GREEN" "$SYMBOL_OK" "$COLOR_RESET" "$label"
+      return 0
+    fi
+
+    printf "\r%s%s%s %s\n" "$COLOR_RED" "$SYMBOL_FAIL" "$COLOR_RESET" "$label" >&2
+    cat "$STEP_LOG" >&2
+    return 1
+  fi
+
+  if "$@" >"$STEP_LOG" 2>&1; then
+    echo "${SYMBOL_OK} $label"
+    return 0
+  fi
+
+  echo "${SYMBOL_FAIL} $label" >&2
+  cat "$STEP_LOG" >&2
+  return 1
+}
+
+sync_repo() {
+  if [ -d "$INSTALL_DIR/.git" ]; then
+    git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
+    git -C "$INSTALL_DIR" pull --ff-only --quiet
+  else
+    git clone --quiet "$REPO_URL" "$INSTALL_DIR"
+  fi
+}
+
+require_command "git" "git is required."
+require_command "bun" "bun is required (https://bun.sh)."
+
+run_step "Syncing GitJazz" sync_repo
+
+cd "$INSTALL_DIR" || fail "Failed to enter install directory: $INSTALL_DIR"
+
+run_step "Installing dependencies" bun install --silent
+
+run_step "Linking CLI" bun link --silent
+
+if [ "$IS_TTY" -eq 1 ]; then
+  echo ""
+fi
+
+echo "${COLOR_GREEN}${SYMBOL_OK}${COLOR_RESET} GitJazz is installed."
+echo "${COLOR_CYAN}${SYMBOL_ARROW}${COLOR_RESET} Next: run ${COLOR_BOLD}${COLOR_CYAN}gj setup${COLOR_RESET}"
