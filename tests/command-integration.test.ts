@@ -43,6 +43,44 @@ describe("user promise: command workflows are safe and predictable", () => {
     expect(await latestCommitMessage(repos.local)).toBe("ai commit message");
   });
 
+  test("runCommitCommand segments unrelated changes into multiple commits", async () => {
+    const repos = await setupRepoPair("commit-segmented");
+    await writeTestConfig(repos.root, {
+      apiKey: "openai-test-key",
+      fastModel: "commit-fast-model",
+      provider: "openai",
+      smartModel: "merge-smart-model",
+    });
+    const calls = mockFetchWithOpenAiText(
+      JSON.stringify({
+        commits: [
+          {
+            files: ["feature.txt"],
+            message: "feat: add feature file",
+          },
+          {
+            files: ["README.md"],
+            message: "docs: add readme notes",
+          },
+        ],
+      })
+    );
+
+    await writeFile(path.join(repos.local, "feature.txt"), "feature\n", "utf8");
+    await writeFile(path.join(repos.local, "README.md"), "notes\n", "utf8");
+
+    await withRepoCwd(repos.local, async () => {
+      await runCommitCommand();
+    });
+
+    const log = await git(repos.local, ["log", "-2", "--pretty=%s"]);
+    expect(log.stdout.trim().split("\n")).toEqual([
+      "docs: add readme notes",
+      "feat: add feature file",
+    ]);
+    expect(calls.length).toBe(1);
+  });
+
   test("runCommitCommand skips commit when there are no changes", async () => {
     const repos = await setupRepoPair("commit-no-changes");
     const beforeHash = await latestCommitHash(repos.local);
@@ -78,6 +116,54 @@ describe("user promise: command workflows are safe and predictable", () => {
     await git(repos.peer, ["fetch", "origin", "main"]);
     const remoteMessage = await latestCommitMessage(repos.peer, "origin/main");
     expect(remoteMessage).toBe("push commit message");
+  });
+
+  test("runPushCommand segments and pushes multiple commits", async () => {
+    const repos = await setupRepoPair("push-segmented");
+    await writeTestConfig(repos.root, {
+      apiKey: "openai-test-key",
+      fastModel: "push-fast-model",
+      provider: "openai",
+      smartModel: "merge-smart-model",
+    });
+    const calls = mockFetchWithOpenAiText(
+      JSON.stringify({
+        commits: [
+          {
+            files: ["app.txt"],
+            message: "feat: update app content",
+          },
+          {
+            files: ["CHANGELOG.md"],
+            message: "docs: add changelog",
+          },
+        ],
+      })
+    );
+
+    await writeFile(path.join(repos.local, "app.txt"), "push-change\n", "utf8");
+    await writeFile(
+      path.join(repos.local, "CHANGELOG.md"),
+      "initial changelog\n",
+      "utf8"
+    );
+
+    await withRepoCwd(repos.local, async () => {
+      await runPushCommand();
+    });
+
+    await git(repos.peer, ["fetch", "origin", "main"]);
+    const remoteLog = await git(repos.peer, [
+      "log",
+      "origin/main",
+      "-2",
+      "--pretty=%s",
+    ]);
+    expect(remoteLog.stdout.trim().split("\n")).toEqual([
+      "docs: add changelog",
+      "feat: update app content",
+    ]);
+    expect(calls.length).toBe(1);
   });
 
   test("runPushCommand pushes existing commits when no staged changes exist", async () => {
