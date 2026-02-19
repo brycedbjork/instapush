@@ -26,7 +26,13 @@ import {
 
 const ALIAS_BLOCK_START = "# >>> GitJazz aliases >>>";
 const ALIAS_BLOCK_END = "# <<< GitJazz aliases <<<";
-const SUPPORTED_ALIAS_COMMANDS = ["push", "commit", "pull", "merge"] as const;
+const SUPPORTED_ALIAS_COMMANDS = [
+  "push",
+  "commit",
+  "pull",
+  "merge",
+  "status",
+] as const;
 const CUSTOM_MODEL_VALUE = "__gj_custom_model__";
 const DEFAULT_ALIAS_SET = [...SUPPORTED_ALIAS_COMMANDS];
 const ALIAS_LINE_PATTERN = /^alias\s+([a-z]+)="gj\s+([a-z]+)"$/;

@@ -6,6 +6,7 @@ import { runMergeCommand } from "./commands/merge.js";
 import { runPullCommand } from "./commands/pull.js";
 import { runPushCommand } from "./commands/push.js";
 import { runSetupCommand } from "./commands/quickstart.js";
+import { runStatusCommand } from "./commands/status.js";
 import { autoUpdateAndMaybeRelaunch } from "./lib/auto-update.js";
 import { CommandError } from "./lib/process.js";
 import { extractErrorMessage, fatal } from "./lib/ui.js";
@@ -60,6 +61,13 @@ program
   .alias("quickstart")
   .action(async () => {
     await runSetupCommand();
+  });
+
+program
+  .command("status")
+  .description("Summarize current git tree changes with the fast AI model.")
+  .action(async () => {
+    await runStatusCommand();
   });
 
 function reportError(error: unknown): never {

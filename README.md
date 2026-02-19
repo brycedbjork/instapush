@@ -21,6 +21,9 @@ Pulls latest changes from `origin` for the current branch.
 - `gj merge`
 Merges `origin/<current-branch>` (or a custom target) and auto-resolves conflicts with AI.
 
+- `gj status`
+Uses the fast AI model to summarize current git tree changes in human-readable language.
+
 - `gj setup`
 Interactive setup/update for:
   - arrow-key UI selection (`↑/↓`, `Enter`)
@@ -28,7 +31,7 @@ Interactive setup/update for:
   - API key (press Enter to keep existing key)
   - smart model (merge conflict resolution), discovered live from provider APIs
   - fast model (commit message generation), discovered live from provider APIs
-  - shell aliases (default: `push`, `commit`, `pull`, `merge`) or `gj`-only mode
+  - shell aliases (default: `push`, `commit`, `pull`, `merge`, `status`) or `gj`-only mode
 
 ## One-line install (recommended)
 
@@ -65,6 +68,7 @@ alias push="gj push"
 alias commit="gj commit"
 alias pull="gj pull"
 alias merge="gj merge"
+alias status="gj status"
 ```
 
 With aliases installed, use:
@@ -74,6 +78,7 @@ push
 commit
 pull
 merge
+status
 ```
 
 Without aliases, use:
@@ -83,6 +88,7 @@ gj push
 gj commit
 gj pull
 gj merge
+gj status
 ```
 
 ## Dev Tooling
@@ -96,4 +102,4 @@ gj merge
 - Run full suite: `bun run test`
 - Run with coverage: `bun run test:coverage`
 
-The suite includes unit tests for provider/model config and AI routing, plus integration tests for `commit`, `push`, `pull`, and `merge` against real temporary git repositories.
+The suite includes unit tests for provider/model config and AI routing, plus integration tests for `commit`, `push`, `pull`, `merge`, and `status` against real temporary git repositories.

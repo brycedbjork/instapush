@@ -5,6 +5,7 @@ import { runCommitCommand } from "../src/commands/commit.js";
 import { runMergeCommand } from "../src/commands/merge.js";
 import { runPullCommand } from "../src/commands/pull.js";
 import { runPushCommand } from "../src/commands/push.js";
+import { runStatusCommand } from "../src/commands/status.js";
 import {
   commitAll,
   git,
@@ -145,6 +146,76 @@ describe("user promise: command workflows are safe and predictable", () => {
 
     const localFile = await readFile(path.join(repos.local, "app.txt"), "utf8");
     expect(localFile).toBe("backup-change\n");
+  });
+
+  test("runStatusCommand summarizes changed tree with fast model", async () => {
+    const repos = await setupRepoPair("status-command");
+    await writeTestConfig(repos.root, {
+      apiKey: "openai-test-key",
+      fastModel: "status-fast-model",
+      provider: "openai",
+      smartModel: "merge-smart-model",
+    });
+    const calls = mockFetchWithOpenAiText(
+      [
+        "You have tracked updates plus an untracked file.",
+        "app.txt has local edits not yet staged.",
+        "notes.txt is new and still untracked.",
+        "Stage app.txt and notes.txt together if they belong in one commit.",
+      ].join("\n")
+    );
+
+    await writeFile(
+      path.join(repos.local, "app.txt"),
+      "local-change\n",
+      "utf8"
+    );
+    await writeFile(path.join(repos.local, "notes.txt"), "draft\n", "utf8");
+
+    const logLines: string[] = [];
+    const originalLog = console.log;
+    console.log = (...args: unknown[]) => {
+      logLines.push(args.join(" "));
+    };
+
+    try {
+      await withRepoCwd(repos.local, async () => {
+        await runStatusCommand();
+      });
+    } finally {
+      console.log = originalLog;
+    }
+
+    const payload = JSON.parse(calls[0]?.body ?? "{}");
+    expect(payload.model).toBe("status-fast-model");
+    expect(logLines.some((line) => line.includes("untracked file"))).toBe(true);
+    expect(logLines.some((line) => line.includes("notes.txt"))).toBe(true);
+  });
+
+  test("runStatusCommand shows clean state without AI call", async () => {
+    const repos = await setupRepoPair("status-clean");
+    globalThis.fetch = () =>
+      Promise.reject(
+        new Error("AI should not be called when working tree is clean.")
+      );
+
+    const logLines: string[] = [];
+    const originalLog = console.log;
+    console.log = (...args: unknown[]) => {
+      logLines.push(args.join(" "));
+    };
+
+    try {
+      await withRepoCwd(repos.local, async () => {
+        await runStatusCommand();
+      });
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(logLines.some((line) => line.includes("Working tree clean"))).toBe(
+      true
+    );
   });
 
   test("runMergeCommand rejects when working tree is dirty", async () => {

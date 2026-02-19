@@ -16,6 +16,11 @@ const commands = [
     description:
       "Merge branches with AI-powered conflict resolution, file by file.",
   },
+  {
+    name: "status",
+    description:
+      "Analyze your git tree with the fast model and get a readable change summary.",
+  },
 ];
 
 export function Commands() {
