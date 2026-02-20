@@ -10,10 +10,10 @@ AI-powered git flows with a curated terminal experience.
 ## Commands
 
 - `gj commit`
-Stages all local changes and creates an AI-generated commit message.
+Stages all local changes and creates one or more AI-planned commits.
 
 - `gj push`
-Stages all changes, creates an AI commit when needed, then pushes.
+Stages all changes, creates one or more AI-planned commits when needed, then pushes.
 
 - `gj pull`
 Pulls latest changes from `origin` for the current branch.

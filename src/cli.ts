@@ -20,14 +20,14 @@ program
 
 program
   .command("commit")
-  .description("Stage all files and create an AI commit.")
+  .description("Stage all files and create AI commit group(s).")
   .action(async () => {
     await runCommitCommand();
   });
 
 program
   .command("push")
-  .description("Stage, AI commit, and push.")
+  .description("Stage, create AI commit group(s), and push.")
   .action(async () => {
     await runPushCommand();
   });

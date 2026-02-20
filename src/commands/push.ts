@@ -1,5 +1,7 @@
-import { generateCommitMessage } from "../lib/commit-message.js";
-import { CliError } from "../lib/errors.js";
+import {
+  type CreatedCommit,
+  createCommitsFromStagedChanges,
+} from "../lib/commit-flow.js";
 import {
   currentBranchName,
   ensureGitRepository,
@@ -11,38 +13,10 @@ import {
 } from "../lib/git.js";
 import { createCommandChecklist, summaryBox } from "../lib/ui.js";
 
-async function createCommitFromStagedChanges(
-  step: <T>(label: string, task: () => Promise<T>) => Promise<T>
-): Promise<string> {
-  const diffSummary = await step("Read diff summary", async () => {
-    const result = await runGit(["diff", "--staged", "--stat"]);
-    return result.stdout;
-  });
-
-  const diffChanges = await step("Read staged patch", async () => {
-    const result = await runGit(["diff", "--staged", "--unified=0"]);
-    return result.stdout;
-  });
-
-  const commitMessage = await step("Generate commit message", async () =>
-    generateCommitMessage(diffSummary, diffChanges)
-  );
-
-  if (!commitMessage) {
-    throw new CliError("AI returned an empty commit message.");
-  }
-
-  await step("Create commit", async () => {
-    await runGit(["commit", "-m", commitMessage]);
-  });
-
-  return commitMessage;
-}
-
 export async function runPushCommand(): Promise<void> {
   const checklist = createCommandChecklist(
     "push",
-    "Push current branch with an AI commit when needed."
+    "Push current branch with AI commit groups when needed."
   );
 
   await checklist.step("Validate repo", async () => {
@@ -66,10 +40,10 @@ export async function runPushCommand(): Promise<void> {
     async () => hasStagedChanges()
   );
 
-  let commitMessage: string | null = null;
+  let createdCommits: CreatedCommit[] = [];
 
   if (stagedChangesExist) {
-    commitMessage = await createCommitFromStagedChanges(checklist.step);
+    createdCommits = await createCommitsFromStagedChanges(checklist.step);
   }
 
   await checklist.step("Push branch", async () => {
@@ -83,10 +57,15 @@ export async function runPushCommand(): Promise<void> {
   checklist.finish();
 
   const summaryLines = [`Branch ${branch}`, `Commit ${hash}`];
-  if (commitMessage) {
-    summaryLines.push(`Created "${commitMessage}"`);
-  } else {
+  if (createdCommits.length === 0) {
     summaryLines.push("No new commit created");
+  } else if (createdCommits.length === 1) {
+    summaryLines.push(`Created "${createdCommits[0]?.message ?? "unknown"}"`);
+  } else {
+    summaryLines.push(`Created ${createdCommits.length} commits`);
+    for (const commit of createdCommits) {
+      summaryLines.push(`${commit.hash} "${commit.message}"`);
+    }
   }
   summaryLines.push(`Pushed to ${upstream ?? "upstream"}`);
 
