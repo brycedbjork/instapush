@@ -82,6 +82,28 @@ const COMMANDS: CommandConfig[] = [
     },
   },
   {
+    name: "status",
+    command: "status",
+    subtitle: "Summarize current git tree changes with AI.",
+    steps: [
+      { label: "Validate repo", delay: 400 },
+      { label: "Read branch", delay: 300 },
+      { label: "Read upstream", delay: 300 },
+      { label: "Read sync state", delay: 350 },
+      { label: "Read git tree", delay: 700 },
+      { label: "Generate AI summary", delay: 1500 },
+    ],
+    summary: {
+      title: "Status",
+      lines: [
+        "Branch main",
+        "Upstream origin/main (2 ahead)",
+        "You have staged changes in src/cli.ts and docs updates in README.md",
+        "No merge conflicts detected",
+      ],
+    },
+  },
+  {
     name: "merge",
     command: "merge feature/auth",
     subtitle: "Merge target branch with AI conflict handling.",
