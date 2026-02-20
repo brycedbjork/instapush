@@ -191,6 +191,7 @@ describe("user promise: command workflows are safe and predictable", () => {
 
   test("runPullCommand pulls latest changes from origin", async () => {
     const repos = await setupRepoPair("pull-command");
+    globalThis.fetch = () => Promise.reject(new Error("offline test fallback"));
 
     await writeFile(path.join(repos.peer, "app.txt"), "peer-change\n", "utf8");
     await commitAll(repos.peer, "peer update");
@@ -216,6 +217,7 @@ describe("user promise: command workflows are safe and predictable", () => {
 
   test("runPullCommand supports custom remote names", async () => {
     const repos = await setupRepoPair("pull-custom-remote");
+    globalThis.fetch = () => Promise.reject(new Error("offline test fallback"));
     await git(repos.local, ["remote", "add", "backup", repos.remote]);
 
     await writeFile(
@@ -232,6 +234,110 @@ describe("user promise: command workflows are safe and predictable", () => {
 
     const localFile = await readFile(path.join(repos.local, "app.txt"), "utf8");
     expect(localFile).toBe("backup-change\n");
+  });
+
+  test("runPullCommand summarizes incoming changes with fast model", async () => {
+    const repos = await setupRepoPair("pull-ai-summary");
+    await writeTestConfig(repos.root, {
+      apiKey: "openai-test-key",
+      fastModel: "pull-fast-model",
+      provider: "openai",
+      smartModel: "merge-smart-model",
+    });
+    const calls = mockFetchWithOpenAiText(
+      [
+        "Payment and auth updates are landing from origin/main.",
+        "Most churn is in app.txt with small surface area.",
+        "Risk looks low; verify login and billing paths after pull.",
+      ].join("\n")
+    );
+
+    await writeFile(path.join(repos.peer, "app.txt"), "peer-change\n", "utf8");
+    await commitAll(repos.peer, "peer update for summary");
+    await git(repos.peer, ["push", "origin", "main"]);
+
+    const logLines: string[] = [];
+    const originalLog = console.log;
+    console.log = (...args: unknown[]) => {
+      logLines.push(args.join(" "));
+    };
+    try {
+      await withRepoCwd(repos.local, async () => {
+        await runPullCommand({ remote: "origin" });
+      });
+    } finally {
+      console.log = originalLog;
+    }
+
+    const payload = JSON.parse(calls[0]?.body ?? "{}");
+    expect(payload.model).toBe("pull-fast-model");
+    expect(
+      logLines.some((line) => line.includes("Payment and auth updates"))
+    ).toBe(true);
+  });
+
+  test("runPullCommand skips AI summary when there are no incoming commits", async () => {
+    const repos = await setupRepoPair("pull-up-to-date");
+    let fetchCalls = 0;
+    globalThis.fetch = () => {
+      fetchCalls += 1;
+      return Promise.reject(new Error("AI should not be called."));
+    };
+
+    const logLines: string[] = [];
+    const originalLog = console.log;
+    console.log = (...args: unknown[]) => {
+      logLines.push(args.join(" "));
+    };
+    try {
+      await withRepoCwd(repos.local, async () => {
+        await runPullCommand({ remote: "origin" });
+      });
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(fetchCalls).toBe(0);
+    expect(logLines.some((line) => line.includes("Already up to date"))).toBe(
+      true
+    );
+  });
+
+  test("runPullCommand falls back when AI summary request fails", async () => {
+    const repos = await setupRepoPair("pull-ai-fallback");
+    await writeTestConfig(repos.root, {
+      apiKey: "openai-test-key",
+      fastModel: "pull-fast-model",
+      provider: "openai",
+      smartModel: "merge-smart-model",
+    });
+    globalThis.fetch = () => Promise.reject(new Error("network down"));
+
+    await writeFile(path.join(repos.peer, "app.txt"), "peer-change\n", "utf8");
+    await commitAll(repos.peer, "peer update for fallback");
+    await git(repos.peer, ["push", "origin", "main"]);
+
+    const logLines: string[] = [];
+    const originalLog = console.log;
+    console.log = (...args: unknown[]) => {
+      logLines.push(args.join(" "));
+    };
+    try {
+      await withRepoCwd(repos.local, async () => {
+        await runPullCommand({ remote: "origin" });
+      });
+    } finally {
+      console.log = originalLog;
+    }
+
+    const localFile = await readFile(path.join(repos.local, "app.txt"), "utf8");
+    expect(localFile).toBe("peer-change\n");
+    expect(
+      logLines.some((line) => line.includes("peer update for fallback"))
+    ).toBe(true);
+    expect(
+      logLines.some((line) => line.includes("AI summary unavailable"))
+    ).toBe(true);
   });
 
   test("runStatusCommand summarizes changed tree with fast model", async () => {
