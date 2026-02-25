@@ -1,14 +1,17 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { createCompletion } from "./ai.js";
+import { z } from "zod";
+import { createStructuredOutput } from "./ai.js";
 import { CliError } from "./errors.js";
 
 const SYSTEM_PROMPT = [
   "You resolve git merge conflicts in source files.",
-  "Return only the exact replacement text for one conflict block.",
-  "Do not include markdown or explanations.",
+  "Return JSON with a single string field named resolution.",
   "Preserve behavior and syntax.",
   "Keep both sides when both have valid, non-overlapping changes.",
 ].join(" ");
+const CONFLICT_RESOLUTION_OUTPUT_SCHEMA = z.object({
+  resolution: z.string().min(1),
+});
 
 interface ConflictBlock {
   start: number;
@@ -146,7 +149,11 @@ async function resolveConflictBlock(
     afterContext
   );
 
-  const response = await createCompletion({
+  const response = await createStructuredOutput({
+    schema: CONFLICT_RESOLUTION_OUTPUT_SCHEMA,
+    schemaDescription:
+      "The merged replacement text for exactly one git conflict block.",
+    schemaName: "conflict_resolution",
     systemPrompt: SYSTEM_PROMPT,
     userPrompt: prompt,
     modelTier: "smart",
@@ -154,7 +161,7 @@ async function resolveConflictBlock(
     temperature: 0.1,
   });
 
-  const cleaned = stripCodeFences(response);
+  const cleaned = stripCodeFences(response.resolution);
   if (!cleaned.trim()) {
     throw new CliError(
       `Model returned empty resolution for conflict ${conflictIndex}/${totalConflicts}.`

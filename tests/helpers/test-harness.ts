@@ -167,7 +167,16 @@ export function mockFetchWithOpenAiText(text: string): FetchCall[] {
 
     return new Response(
       JSON.stringify({
-        choices: [{ message: { content: text } }],
+        id: "chatcmpl-test",
+        choices: [
+          {
+            finish_reason: "stop",
+            index: 0,
+            message: { content: text, role: "assistant" },
+          },
+        ],
+        created: 0,
+        model: "mock-model",
       }),
       {
         headers: { "content-type": "application/json" },

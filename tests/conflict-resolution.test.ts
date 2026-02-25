@@ -22,7 +22,7 @@ describe("user promise: AI writes clear commits and resolves conflicts safely", 
       smartModel: "merge-smart-model",
     });
 
-    const calls = mockFetchWithOpenAiText(" commit summary ");
+    const calls = mockFetchWithOpenAiText('{"message":" commit summary "}');
     const message = await generateCommitMessage("summary", "patch");
 
     expect(message).toBe("commit summary");
@@ -55,7 +55,7 @@ describe("user promise: AI writes clear commits and resolves conflicts safely", 
       smartModel: "merge-smart-model",
     });
 
-    const calls = mockFetchWithOpenAiText("merged-value");
+    const calls = mockFetchWithOpenAiText('{"resolution":"merged-value"}');
     await resolveConflictsInFile(filePath);
 
     const content = await readFile(filePath, "utf8");
@@ -90,7 +90,7 @@ describe("user promise: AI writes clear commits and resolves conflicts safely", 
       smartModel: "merge-smart-model",
     });
 
-    mockFetchWithOpenAiText("<<<<<<< still broken");
+    mockFetchWithOpenAiText('{"resolution":"<<<<<<< still broken"}');
     await expect(resolveConflictsInFile(filePath)).rejects.toThrow(
       "Model returned unresolved markers"
     );
@@ -145,7 +145,7 @@ describe("user promise: AI writes clear commits and resolves conflicts safely", 
       smartModel: "merge-smart-model",
     });
 
-    mockFetchWithOpenAiText("```txt\nmerged-value\n```");
+    mockFetchWithOpenAiText('{"resolution":"```txt\\nmerged-value\\n```"}');
     await resolveConflictsInFile(filePath);
 
     const resolved = await readFile(filePath, "utf8");

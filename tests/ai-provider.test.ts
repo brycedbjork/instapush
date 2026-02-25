@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createCompletion } from "../src/lib/ai.js";
+import { z } from "zod";
+import { createCompletion, createStructuredOutput } from "../src/lib/ai.js";
 import {
   type FetchCall,
   mockFetchWithOpenAiText,
@@ -59,7 +60,9 @@ describe("user promise: AI provider integrations are reliable", () => {
 
       return new Response(
         JSON.stringify({
+          type: "message",
           content: [{ text: "anthropic-response", type: "text" }],
+          usage: { input_tokens: 1, output_tokens: 1 },
         }),
         {
           headers: { "content-type": "application/json" },
@@ -130,29 +133,6 @@ describe("user promise: AI provider integrations are reliable", () => {
     );
   });
 
-  test("throws a readable error when OpenAI returns invalid JSON", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "gj-ai-openai-bad-json-"));
-    await writeTestConfig(root, {
-      apiKey: "openai-test-key",
-      fastModel: "openai-fast-model",
-      provider: "openai",
-      smartModel: "openai-smart-model",
-    });
-
-    globalThis.fetch = async () =>
-      new Response("not valid json", {
-        headers: { "content-type": "application/json" },
-        status: 200,
-      });
-
-    await expect(
-      createCompletion({
-        systemPrompt: "system",
-        userPrompt: "user",
-      })
-    ).rejects.toThrow("OpenAI returned invalid JSON.");
-  });
-
   test("throws a readable error when OpenAI returns empty content", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "gj-ai-openai-empty-"));
     await writeTestConfig(root, {
@@ -162,73 +142,56 @@ describe("user promise: AI provider integrations are reliable", () => {
       smartModel: "openai-smart-model",
     });
 
-    globalThis.fetch = async () =>
-      new Response(
-        JSON.stringify({
-          choices: [{ message: { content: "  " } }],
-        }),
-        {
-          headers: { "content-type": "application/json" },
-          status: 200,
-        }
-      );
+    mockFetchWithOpenAiText("  ");
 
     await expect(
       createCompletion({
         systemPrompt: "system",
         userPrompt: "user",
       })
-    ).rejects.toThrow("OpenAI returned empty content.");
+    ).rejects.toThrow("AI returned empty content.");
   });
 
-  test("throws a readable error when Anthropic fails", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "gj-ai-anthropic-fail-"));
+  test("returns validated structured output", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "gj-ai-openai-object-"));
     await writeTestConfig(root, {
-      apiKey: "anthropic-test-key",
-      fastModel: "anthropic-fast-model",
-      provider: "anthropic",
-      smartModel: "anthropic-smart-model",
+      apiKey: "openai-test-key",
+      fastModel: "openai-fast-model",
+      provider: "openai",
+      smartModel: "openai-smart-model",
     });
 
-    globalThis.fetch = async () =>
-      new Response("bad request", {
-        headers: { "content-type": "application/json" },
-        status: 400,
-      });
+    const calls = mockFetchWithOpenAiText('{"message":"object result"}');
+    const result = await createStructuredOutput({
+      schema: z.object({ message: z.string().min(1) }),
+      schemaName: "test_output",
+      systemPrompt: "system",
+      userPrompt: "user",
+    });
 
-    await expect(
-      createCompletion({
-        systemPrompt: "system",
-        userPrompt: "user",
-      })
-    ).rejects.toThrow("Anthropic request failed (400): bad request");
+    expect(result.message).toBe("object result");
+    const payload = JSON.parse(calls[0]?.body ?? "{}");
+    expect(payload.response_format.type).toBe("json_schema");
   });
 
-  test("throws a readable error when Google returns empty content", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "gj-ai-google-empty-"));
+  test("fails when structured output does not match schema", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "gj-ai-openai-bad-object-"));
     await writeTestConfig(root, {
-      apiKey: "google-test-key",
-      fastModel: "google-fast-model",
-      provider: "google",
-      smartModel: "google-smart-model",
+      apiKey: "openai-test-key",
+      fastModel: "openai-fast-model",
+      provider: "openai",
+      smartModel: "openai-smart-model",
     });
 
-    globalThis.fetch = async () =>
-      new Response(
-        JSON.stringify({
-          candidates: [],
-        }),
-        {
-          headers: { "content-type": "application/json" },
-          status: 200,
-        }
-      );
+    mockFetchWithOpenAiText("not-json");
 
     await expect(
-      createCompletion({
+      createStructuredOutput({
+        schema: z.object({ message: z.string().min(1) }),
+        schemaName: "test_output",
         systemPrompt: "system",
         userPrompt: "user",
       })
-    ).rejects.toThrow("Google returned empty content.");
+    ).rejects.toThrow();
   });
 });

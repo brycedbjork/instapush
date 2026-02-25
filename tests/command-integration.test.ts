@@ -29,7 +29,7 @@ describe("user promise: command workflows are safe and predictable", () => {
       provider: "openai",
       smartModel: "merge-smart-model",
     });
-    mockFetchWithOpenAiText("ai commit message");
+    mockFetchWithOpenAiText('{"message":"ai commit message"}');
 
     await writeFile(
       path.join(repos.local, "app.txt"),
@@ -42,6 +42,59 @@ describe("user promise: command workflows are safe and predictable", () => {
     });
 
     expect(await latestCommitMessage(repos.local)).toBe("ai commit message");
+  });
+
+  test("runCommitCommand normalizes fenced JSON into a commit subject", async () => {
+    const repos = await setupRepoPair("commit-json-wrapper");
+    await writeTestConfig(repos.root, {
+      apiKey: "openai-test-key",
+      fastModel: "commit-fast-model",
+      provider: "openai",
+      smartModel: "merge-smart-model",
+    });
+    mockFetchWithOpenAiText(
+      '{"message":"```json\\n{\\"message\\":\\"fix: sanitize wrapped ai output\\"}\\n```"}'
+    );
+
+    await writeFile(
+      path.join(repos.local, "app.txt"),
+      "json-wrapper-change\n",
+      "utf8"
+    );
+    await withRepoCwd(repos.local, async () => {
+      await runCommitCommand();
+    });
+
+    expect(await latestCommitMessage(repos.local)).toBe(
+      "fix: sanitize wrapped ai output"
+    );
+  });
+
+  test("runCommitCommand rejects unusable wrapper output", async () => {
+    const repos = await setupRepoPair("commit-invalid-wrapper");
+    const beforeHash = await latestCommitHash(repos.local);
+    await writeTestConfig(repos.root, {
+      apiKey: "openai-test-key",
+      fastModel: "commit-fast-model",
+      provider: "openai",
+      smartModel: "merge-smart-model",
+    });
+    mockFetchWithOpenAiText('{"message":"```json"}');
+
+    await writeFile(
+      path.join(repos.local, "app.txt"),
+      "invalid-wrapper-change\n",
+      "utf8"
+    );
+
+    await expect(
+      withRepoCwd(repos.local, async () => {
+        await runCommitCommand();
+      })
+    ).rejects.toThrow("AI returned an empty commit message.");
+
+    const afterHash = await latestCommitHash(repos.local);
+    expect(afterHash).toBe(beforeHash);
   });
 
   test("runCommitCommand segments unrelated changes into multiple commits", async () => {
@@ -106,7 +159,7 @@ describe("user promise: command workflows are safe and predictable", () => {
       provider: "openai",
       smartModel: "merge-smart-model",
     });
-    mockFetchWithOpenAiText("push commit message");
+    mockFetchWithOpenAiText('{"message":"push commit message"}');
 
     await writeFile(path.join(repos.local, "app.txt"), "push-change\n", "utf8");
 
@@ -443,7 +496,9 @@ describe("user promise: command workflows are safe and predictable", () => {
       provider: "openai",
       smartModel: "merge-smart-model",
     });
-    const calls = mockFetchWithOpenAiText("local-change\npeer-change");
+    const calls = mockFetchWithOpenAiText(
+      '{"resolution":"local-change\\npeer-change"}'
+    );
 
     await git(repos.peer, ["checkout", "-b", "topic"]);
     await writeFile(path.join(repos.peer, "app.txt"), "peer-change\n", "utf8");
@@ -494,7 +549,7 @@ describe("user promise: command workflows are safe and predictable", () => {
       provider: "openai",
       smartModel: "merge-smart-model",
     });
-    mockFetchWithOpenAiText("<<<<<<< unresolved");
+    mockFetchWithOpenAiText('{"resolution":"<<<<<<< unresolved"}');
 
     await git(repos.peer, ["checkout", "-b", "topic"]);
     await writeFile(path.join(repos.peer, "app.txt"), "peer-side\n", "utf8");
