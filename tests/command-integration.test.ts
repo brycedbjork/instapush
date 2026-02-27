@@ -97,6 +97,33 @@ describe("user promise: command workflows are safe and predictable", () => {
     expect(afterHash).toBe(beforeHash);
   });
 
+  test("runCommitCommand rejects plain fence headers in plan fallback", async () => {
+    const repos = await setupRepoPair("commit-invalid-plan-fallback");
+    const beforeHash = await latestCommitHash(repos.local);
+    await writeTestConfig(repos.root, {
+      apiKey: "openai-test-key",
+      fastModel: "commit-fast-model",
+      provider: "openai",
+      smartModel: "merge-smart-model",
+    });
+    mockFetchWithOpenAiText("```json");
+
+    await writeFile(
+      path.join(repos.local, "app.txt"),
+      "invalid-plan-fallback\n",
+      "utf8"
+    );
+
+    await expect(
+      withRepoCwd(repos.local, async () => {
+        await runCommitCommand();
+      })
+    ).rejects.toThrow("AI returned an empty commit message.");
+
+    const afterHash = await latestCommitHash(repos.local);
+    expect(afterHash).toBe(beforeHash);
+  });
+
   test("runCommitCommand segments unrelated changes into multiple commits", async () => {
     const repos = await setupRepoPair("commit-segmented");
     await writeTestConfig(repos.root, {
