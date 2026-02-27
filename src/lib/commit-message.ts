@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { createStructuredOutput } from "./ai.js";
+import { createCompletion, createStructuredOutput } from "./ai.js";
+import { CliError } from "./errors.js";
 
 const SYSTEM_PROMPT = [
   "You are a helpful assistant that generates concise, clear, and useful git commit messages.",
@@ -143,6 +144,18 @@ export function normalizeGeneratedCommitMessage(rawMessage: string): string {
   return normalized;
 }
 
+function shouldFallbackToTextCompletion(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("no object generated") ||
+    message.includes("could not parse")
+  );
+}
+
 export async function generateCommitMessage(
   diffSummary: string,
   diffChanges: string
@@ -158,18 +171,41 @@ export async function generateCommitMessage(
     diffChanges || "(no patch output)",
   ].join("\n");
 
-  const response = await createStructuredOutput({
-    schema: COMMIT_MESSAGE_OUTPUT_SCHEMA,
-    schemaDescription:
-      "A one-line git commit subject describing the staged changes.",
-    schemaName: "commit_message",
-    systemPrompt: SYSTEM_PROMPT,
-    userPrompt: truncatePrompt(prompt),
-    modelTier: "fast",
-    maxTokens: 60,
-    temperature: 0.3,
-    stop: ["\n"],
-  });
+  let rawMessage = "";
 
-  return normalizeGeneratedCommitMessage(response.message);
+  try {
+    const response = await createStructuredOutput({
+      schema: COMMIT_MESSAGE_OUTPUT_SCHEMA,
+      schemaDescription:
+        "A one-line git commit subject describing the staged changes.",
+      schemaName: "commit_message",
+      systemPrompt: SYSTEM_PROMPT,
+      userPrompt: truncatePrompt(prompt),
+      modelTier: "fast",
+      maxTokens: 60,
+      temperature: 0.3,
+      stop: ["\n"],
+    });
+    rawMessage = response.message;
+  } catch (error) {
+    if (!shouldFallbackToTextCompletion(error)) {
+      throw error;
+    }
+
+    rawMessage = await createCompletion({
+      systemPrompt: SYSTEM_PROMPT,
+      userPrompt: truncatePrompt(prompt),
+      modelTier: "fast",
+      maxTokens: 60,
+      temperature: 0.3,
+      stop: ["\n"],
+    });
+  }
+
+  const normalized = normalizeGeneratedCommitMessage(rawMessage);
+  if (!normalized) {
+    throw new CliError("AI returned an empty commit message.");
+  }
+
+  return normalized;
 }
