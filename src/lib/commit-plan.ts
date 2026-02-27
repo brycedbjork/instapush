@@ -1,5 +1,8 @@
 import { createCompletion } from "./ai.js";
-import { generateCommitMessage } from "./commit-message.js";
+import {
+  generateCommitMessage,
+  normalizeGeneratedCommitMessage,
+} from "./commit-message.js";
 
 export interface CommitGroupPlan {
   files: string[];
@@ -19,8 +22,6 @@ const PLAN_SYSTEM_PROMPT = [
   "Use each staged file exactly once.",
   "If changes are tightly related, return a single commit.",
 ].join(" ");
-const CARRIAGE_RETURN_PATTERN = /\r/g;
-const QUOTED_MESSAGE_PATTERN = /^"(.*)"$/;
 const CODE_FENCE_START_PATTERN = /^```(?:json)?\s*/i;
 const CODE_FENCE_END_PATTERN = /\s*```$/;
 
@@ -33,11 +34,7 @@ function truncatePrompt(prompt: string): string {
 }
 
 function sanitizeCommitMessage(raw: string): string {
-  const firstLine =
-    raw.replace(CARRIAGE_RETURN_PATTERN, "").split("\n")[0] ?? "";
-  const trimmed = firstLine.trim();
-  const unquoted = trimmed.replace(QUOTED_MESSAGE_PATTERN, "$1");
-  return unquoted.trim();
+  return normalizeGeneratedCommitMessage(raw);
 }
 
 function stripCodeFences(raw: string): string {
