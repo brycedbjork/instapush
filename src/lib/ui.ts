@@ -252,7 +252,8 @@ function clearPreviousRender(
   lineCount: number
 ): void {
   if (lineCount > 0) {
-    output.write(`\u001B[${lineCount}F`);
+    // Use cursor-up + carriage return for broader terminal compatibility.
+    output.write(`\u001B[${lineCount}A\r`);
   }
   output.write("\u001B[0J");
 }
