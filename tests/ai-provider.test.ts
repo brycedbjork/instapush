@@ -172,6 +172,7 @@ describe("user promise: AI provider integrations are reliable", () => {
     expect(result.message).toBe("object result");
     const payload = JSON.parse(calls[0]?.body ?? "{}");
     expect(payload.response_format.type).toBe("json_schema");
+    expect(payload.response_format.json_schema.strict).toBe(true);
   });
 
   test("fails when structured output does not match schema", async () => {

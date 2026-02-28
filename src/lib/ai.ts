@@ -7,7 +7,7 @@ import {
   type LanguageModel,
   Output,
 } from "ai";
-import { type ModelTier, resolveAiConfig } from "./config.js";
+import { type AiProvider, type ModelTier, resolveAiConfig } from "./config.js";
 import { CliError } from "./errors.js";
 
 interface BaseCompletionOptions {
@@ -28,9 +28,14 @@ interface StructuredOutputOptions<OBJECT> extends BaseCompletionOptions {
   schemaName?: string;
 }
 
+interface ResolvedLanguageModel {
+  provider: AiProvider;
+  model: LanguageModel;
+}
+
 async function resolveLanguageModel(
   options: Pick<BaseCompletionOptions, "model" | "modelTier">
-): Promise<LanguageModel> {
+): Promise<ResolvedLanguageModel> {
   const config = await resolveAiConfig();
   const selectedTier = options.modelTier ?? "smart";
   const selectedModel =
@@ -39,16 +44,16 @@ async function resolveLanguageModel(
 
   if (config.provider === "openai") {
     const openai = createOpenAI({ apiKey: config.apiKey });
-    return openai.chat(selectedModel);
+    return { provider: "openai", model: openai.chat(selectedModel) };
   }
 
   if (config.provider === "anthropic") {
     const anthropic = createAnthropic({ apiKey: config.apiKey });
-    return anthropic.chat(selectedModel);
+    return { provider: "anthropic", model: anthropic.chat(selectedModel) };
   }
 
   const google = createGoogleGenerativeAI({ apiKey: config.apiKey });
-  return google.chat(selectedModel);
+  return { provider: "google", model: google.chat(selectedModel) };
 }
 
 function asCliError(error: unknown): CliError {
@@ -61,11 +66,37 @@ function asCliError(error: unknown): CliError {
   return new CliError("AI request failed.");
 }
 
+function structuredProviderOptions(
+  provider: AiProvider
+): Record<string, Record<string, string | boolean>> {
+  if (provider === "openai") {
+    return {
+      openai: {
+        strictJsonSchema: true,
+      },
+    };
+  }
+
+  if (provider === "google") {
+    return {
+      google: {
+        structuredOutputs: true,
+      },
+    };
+  }
+
+  return {
+    anthropic: {
+      structuredOutputMode: "auto",
+    },
+  };
+}
+
 export async function createCompletion(
   options: CompletionOptions
 ): Promise<string> {
   try {
-    const model = await resolveLanguageModel(options);
+    const { model } = await resolveLanguageModel(options);
     const callSettings = {
       ...(options.maxTokens !== undefined && {
         maxOutputTokens: options.maxTokens,
@@ -98,7 +129,7 @@ export async function createStructuredOutput<OBJECT>(
   options: StructuredOutputOptions<OBJECT>
 ): Promise<OBJECT> {
   try {
-    const model = await resolveLanguageModel(options);
+    const { model, provider } = await resolveLanguageModel(options);
     const callSettings = {
       ...(options.maxTokens !== undefined && {
         maxOutputTokens: options.maxTokens,
@@ -122,6 +153,7 @@ export async function createStructuredOutput<OBJECT>(
       }),
       system: options.systemPrompt,
       prompt: options.userPrompt,
+      providerOptions: structuredProviderOptions(provider),
       maxRetries: 0,
       ...callSettings,
     });

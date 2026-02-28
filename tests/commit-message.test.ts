@@ -33,4 +33,8 @@ describe("normalizeGeneratedCommitMessage", () => {
   test("returns empty for unusable fence headers", () => {
     expect(normalizeGeneratedCommitMessage('"```json"')).toBe("");
   });
+
+  test("returns empty for bare JSON object fragments", () => {
+    expect(normalizeGeneratedCommitMessage("{")).toBe("");
+  });
 });

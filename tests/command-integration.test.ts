@@ -12,6 +12,7 @@ import {
   latestCommitHash,
   latestCommitMessage,
   mockFetchWithOpenAiText,
+  mockFetchWithOpenAiTexts,
   setupIsolatedRuntime,
   setupRepoPair,
   withRepoCwd,
@@ -122,6 +123,34 @@ describe("user promise: command workflows are safe and predictable", () => {
 
     const afterHash = await latestCommitHash(repos.local);
     expect(afterHash).toBe(beforeHash);
+  });
+
+  test("runCommitCommand recovers from bare JSON token in plan fallback", async () => {
+    const repos = await setupRepoPair("commit-plan-bare-json-token");
+    await writeTestConfig(repos.root, {
+      apiKey: "openai-test-key",
+      fastModel: "commit-fast-model",
+      provider: "openai",
+      smartModel: "merge-smart-model",
+    });
+    mockFetchWithOpenAiTexts([
+      "{",
+      '{"message":"fix: recover from malformed ai output"}',
+    ]);
+
+    await writeFile(
+      path.join(repos.local, "app.txt"),
+      "plan-bare-json-token\n",
+      "utf8"
+    );
+
+    await withRepoCwd(repos.local, async () => {
+      await runCommitCommand();
+    });
+
+    expect(await latestCommitMessage(repos.local)).toBe(
+      "fix: recover from malformed ai output"
+    );
   });
 
   test("runCommitCommand segments unrelated changes into multiple commits", async () => {

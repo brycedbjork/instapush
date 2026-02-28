@@ -1,17 +1,14 @@
-import { createCompletion } from "./ai.js";
+import { z } from "zod";
+import { createStructuredOutput } from "./ai.js";
 import {
   generateCommitMessage,
+  isUsableCommitMessage,
   normalizeGeneratedCommitMessage,
 } from "./commit-message.js";
 
 export interface CommitGroupPlan {
   files: string[];
   message: string;
-}
-
-interface RawPlanEntry {
-  files?: unknown;
-  message?: unknown;
 }
 
 const PLAN_SYSTEM_PROMPT = [
@@ -22,8 +19,16 @@ const PLAN_SYSTEM_PROMPT = [
   "Use each staged file exactly once.",
   "If changes are tightly related, return a single commit.",
 ].join(" ");
-const CODE_FENCE_START_PATTERN = /^```(?:json)?\s*/i;
-const CODE_FENCE_END_PATTERN = /\s*```$/;
+const COMMIT_PLAN_OUTPUT_SCHEMA = z.object({
+  commits: z
+    .array(
+      z.object({
+        files: z.array(z.string().min(1)).min(1),
+        message: z.string().min(1),
+      })
+    )
+    .min(1),
+});
 
 function truncatePrompt(prompt: string): string {
   const maxChars = 12_000;
@@ -35,93 +40,6 @@ function truncatePrompt(prompt: string): string {
 
 function sanitizeCommitMessage(raw: string): string {
   return normalizeGeneratedCommitMessage(raw);
-}
-
-function stripCodeFences(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed.startsWith("```")) {
-    return trimmed;
-  }
-
-  return trimmed
-    .replace(CODE_FENCE_START_PATTERN, "")
-    .replace(CODE_FENCE_END_PATTERN, "")
-    .trim();
-}
-
-function toStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const items: string[] = [];
-  for (const entry of value) {
-    if (typeof entry !== "string") {
-      continue;
-    }
-
-    const file = entry.trim();
-    if (file) {
-      items.push(file);
-    }
-  }
-  return items;
-}
-
-interface ParsePlanResult {
-  commits: CommitGroupPlan[];
-  parsedJson: boolean;
-}
-
-function parsePlan(raw: string): ParsePlanResult {
-  const sanitized = stripCodeFences(raw);
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(sanitized);
-  } catch {
-    return {
-      commits: [],
-      parsedJson: false,
-    };
-  }
-
-  let candidateEntries: unknown = null;
-  if (Array.isArray(parsed)) {
-    candidateEntries = parsed;
-  } else if (typeof parsed === "object" && parsed !== null) {
-    candidateEntries = (parsed as { commits?: unknown }).commits;
-  }
-
-  if (!Array.isArray(candidateEntries)) {
-    return {
-      commits: [],
-      parsedJson: true,
-    };
-  }
-
-  const commits: CommitGroupPlan[] = [];
-  for (const entry of candidateEntries) {
-    if (typeof entry !== "object" || entry === null) {
-      continue;
-    }
-
-    const typedEntry = entry as RawPlanEntry;
-    const files = toStringArray(typedEntry.files);
-    const message =
-      typeof typedEntry.message === "string"
-        ? sanitizeCommitMessage(typedEntry.message)
-        : "";
-
-    if (files.length > 0 && message) {
-      commits.push({ files, message });
-    }
-  }
-
-  return {
-    commits,
-    parsedJson: true,
-  };
 }
 
 function dedupePreservingOrder(values: string[]): string[] {
@@ -176,19 +94,44 @@ function normalizePlan(
   return normalized;
 }
 
+function shouldFallbackToSingleCommit(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("no object generated") ||
+    message.includes("could not parse") ||
+    message.includes("did not match schema")
+  );
+}
+
+function toCommitGroupPlans(
+  commits: Array<{ files: string[]; message: string }>
+): CommitGroupPlan[] {
+  const normalized: CommitGroupPlan[] = [];
+
+  for (const commit of commits) {
+    const files = dedupePreservingOrder(
+      commit.files.map((file) => file.trim()).filter((file) => file.length > 0)
+    );
+    const message = sanitizeCommitMessage(commit.message);
+
+    if (files.length > 0 && isUsableCommitMessage(message)) {
+      normalized.push({ files, message });
+    }
+  }
+
+  return normalized;
+}
+
 async function fallbackSingleCommit(
   stagedFiles: string[],
   diffSummary: string,
-  diffChanges: string,
-  rawResponse: string,
-  preferRawMessage: boolean
+  diffChanges: string
 ): Promise<CommitGroupPlan[]> {
-  const fallbackFromRaw = preferRawMessage
-    ? sanitizeCommitMessage(rawResponse)
-    : "";
-  const message =
-    fallbackFromRaw || (await generateCommitMessage(diffSummary, diffChanges));
-
+  const message = await generateCommitMessage(diffSummary, diffChanges);
   return [{ files: [...stagedFiles], message }];
 }
 
@@ -220,34 +163,30 @@ export async function planCommitGroups(
     diffChanges || "(no patch output)",
   ].join("\n");
 
-  const rawResponse = await createCompletion({
-    systemPrompt: PLAN_SYSTEM_PROMPT,
-    userPrompt: truncatePrompt(prompt),
-    modelTier: "fast",
-    maxTokens: 500,
-    temperature: 0.2,
-  });
-
-  const parsedPlan = parsePlan(rawResponse);
-  if (!parsedPlan.parsedJson) {
-    return fallbackSingleCommit(
-      stagedFiles,
-      diffSummary,
-      diffChanges,
-      rawResponse,
-      true
-    );
+  let plannedCommits: CommitGroupPlan[] = [];
+  try {
+    const response = await createStructuredOutput({
+      schema: COMMIT_PLAN_OUTPUT_SCHEMA,
+      schemaDescription:
+        "A list of commit groups, each with a concise message and file paths.",
+      schemaName: "commit_group_plan",
+      systemPrompt: PLAN_SYSTEM_PROMPT,
+      userPrompt: truncatePrompt(prompt),
+      modelTier: "fast",
+      maxTokens: 500,
+      temperature: 0.2,
+    });
+    plannedCommits = toCommitGroupPlans(response.commits);
+  } catch (error) {
+    if (!shouldFallbackToSingleCommit(error)) {
+      throw error;
+    }
+    return fallbackSingleCommit(stagedFiles, diffSummary, diffChanges);
   }
 
-  const normalizedPlan = normalizePlan(parsedPlan.commits, stagedFiles);
+  const normalizedPlan = normalizePlan(plannedCommits, stagedFiles);
   if (normalizedPlan.length === 0) {
-    return fallbackSingleCommit(
-      stagedFiles,
-      diffSummary,
-      diffChanges,
-      rawResponse,
-      false
-    );
+    return fallbackSingleCommit(stagedFiles, diffSummary, diffChanges);
   }
 
   return normalizedPlan;

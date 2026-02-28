@@ -157,13 +157,20 @@ export function requestBodyFromInput(
 }
 
 export function mockFetchWithOpenAiText(text: string): FetchCall[] {
+  return mockFetchWithOpenAiTexts([text]);
+}
+
+export function mockFetchWithOpenAiTexts(texts: string[]): FetchCall[] {
   const calls: FetchCall[] = [];
+  let callIndex = 0;
   globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
     const method =
       init?.method || (input instanceof Request ? input.method : "GET");
     const rawBody = await requestBodyFromInput(input, init);
     calls.push({ body: rawBody, method, url });
+    const text = texts[Math.min(callIndex, texts.length - 1)] ?? "";
+    callIndex += 1;
 
     return new Response(
       JSON.stringify({
