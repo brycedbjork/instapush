@@ -1,3 +1,4 @@
+import { NoObjectGeneratedError, NoOutputGeneratedError } from "ai";
 import { z } from "zod";
 import { createStructuredOutput } from "./ai.js";
 import {
@@ -95,12 +96,20 @@ function normalizePlan(
 }
 
 function shouldFallbackToSingleCommit(error: unknown): boolean {
+  if (
+    NoObjectGeneratedError.isInstance(error) ||
+    NoOutputGeneratedError.isInstance(error)
+  ) {
+    return true;
+  }
+
   if (!(error instanceof Error)) {
     return false;
   }
 
   const message = error.message.toLowerCase();
   return (
+    message.includes("no output generated") ||
     message.includes("no object generated") ||
     message.includes("could not parse") ||
     message.includes("did not match schema")

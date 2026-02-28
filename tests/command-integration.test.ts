@@ -153,6 +153,58 @@ describe("user promise: command workflows are safe and predictable", () => {
     );
   });
 
+  test("runCommitCommand recovers when plan has no structured output", async () => {
+    const repos = await setupRepoPair("commit-plan-no-structured-output");
+    await writeTestConfig(repos.root, {
+      apiKey: "openai-test-key",
+      fastModel: "commit-fast-model",
+      provider: "openai",
+      smartModel: "merge-smart-model",
+    });
+
+    let callCount = 0;
+    globalThis.fetch = () => {
+      callCount += 1;
+      const content =
+        callCount === 1
+          ? null
+          : '{"message":"fix: recover when plan has no output"}';
+
+      return new Response(
+        JSON.stringify({
+          id: "chatcmpl-test",
+          choices: [
+            {
+              finish_reason: "stop",
+              index: 0,
+              message: { content, role: "assistant" },
+            },
+          ],
+          created: 0,
+          model: "mock-model",
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        }
+      );
+    };
+
+    await writeFile(
+      path.join(repos.local, "app.txt"),
+      "plan-no-structured-output\n",
+      "utf8"
+    );
+
+    await withRepoCwd(repos.local, async () => {
+      await runCommitCommand();
+    });
+
+    expect(await latestCommitMessage(repos.local)).toBe(
+      "fix: recover when plan has no output"
+    );
+  });
+
   test("runCommitCommand segments unrelated changes into multiple commits", async () => {
     const repos = await setupRepoPair("commit-segmented");
     await writeTestConfig(repos.root, {
