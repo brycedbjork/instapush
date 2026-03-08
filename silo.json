@@ -1,0 +1,46 @@
+{
+  "scripts": {
+    "setup": {
+      "run": "bun install && cd website && bun install",
+      "timeout_sec": 1200
+    },
+    "web": {
+      "run": "bun run dev",
+      "cwd": "website",
+      "await": [
+        "setup"
+      ],
+      "ready": {
+        "port": 3000
+      }
+    },
+    "archive": {
+      "run": "rm -rf node_modules website/node_modules website/.next coverage"
+    }
+  },
+  "panes": [
+    {
+      "type": "terminal",
+      "title": "Work",
+      "flex": 1.3,
+      "tabs": [
+        "codex",
+        "cc",
+        {
+          "script": "web"
+        }
+      ]
+    },
+    {
+      "type": "browser",
+      "title": "Site",
+      "flex": 1.1,
+      "tabs": [
+        {
+          "url": "http://localhost:3000",
+          "await": "web"
+        }
+      ]
+    }
+  ]
+}
