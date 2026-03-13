@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { runCommitCommand } from "../src/commands/commit.js";
 import { runMergeCommand } from "../src/commands/merge.js";
@@ -257,6 +257,36 @@ describe("user promise: command workflows are safe and predictable", () => {
 
     const afterHash = await latestCommitHash(repos.local);
     expect(afterHash).toBe(beforeHash);
+  });
+
+  test("runCommitCommand stages tracked deletions from a nested directory", async () => {
+    const repos = await setupRepoPair("commit-nested-delete");
+    await writeTestConfig(repos.root, {
+      apiKey: "openai-test-key",
+      fastModel: "commit-fast-model",
+      provider: "openai",
+      smartModel: "merge-smart-model",
+    });
+    mockFetchWithOpenAiText('{"message":"chore: remove app file"}');
+
+    await mkdir(path.join(repos.local, "nested"));
+    await rm(path.join(repos.local, "app.txt"));
+
+    await withRepoCwd(path.join(repos.local, "nested"), async () => {
+      await runCommitCommand();
+    });
+
+    expect(await latestCommitMessage(repos.local)).toBe(
+      "chore: remove app file"
+    );
+
+    const committedFiles = await git(repos.local, [
+      "show",
+      "--name-status",
+      "--format=",
+      "HEAD",
+    ]);
+    expect(committedFiles.stdout.trim()).toContain("D\tapp.txt");
   });
 
   test("runPushCommand commits and pushes to upstream", async () => {

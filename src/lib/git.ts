@@ -30,8 +30,14 @@ export async function ensureGitRepository(): Promise<void> {
   await runGit(["rev-parse", "--is-inside-work-tree"]);
 }
 
+export async function repositoryRoot(): Promise<string> {
+  const result = await runGit(["rev-parse", "--show-toplevel"]);
+  return result.stdout.trim();
+}
+
 export async function stageAllChanges(): Promise<void> {
-  await runGit(["add", "."]);
+  const root = await repositoryRoot();
+  await runGit(["-C", root, "add", "-A"]);
 }
 
 export async function hasStagedChanges(): Promise<boolean> {
