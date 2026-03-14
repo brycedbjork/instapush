@@ -1,6 +1,11 @@
 import { planCommitGroups } from "./commit-plan.js";
 import { CliError } from "./errors.js";
-import { hasStagedChanges, runGit, shortHeadHash } from "./git.js";
+import {
+  hasStagedChanges,
+  repositoryRoot,
+  runGit,
+  shortHeadHash,
+} from "./git.js";
 
 export interface CreatedCommit {
   files: string[];
@@ -29,6 +34,7 @@ async function readStagedFiles(step: ChecklistStep): Promise<string[]> {
 export async function createCommitsFromStagedChanges(
   step: ChecklistStep
 ): Promise<CreatedCommit[]> {
+  const repoRoot = await repositoryRoot();
   const diffSummary = await step("Read diff summary", async () => {
     const result = await runGit(["diff", "--staged", "--stat"]);
     return result.stdout;
@@ -49,7 +55,7 @@ export async function createCommitsFromStagedChanges(
   );
 
   await step("Prepare commit groups", async () => {
-    await runGit(["reset"]);
+    await runGit(["-C", repoRoot, "reset"]);
   });
 
   const createdCommits: CreatedCommit[] = [];
@@ -58,7 +64,7 @@ export async function createCommitsFromStagedChanges(
     const sequenceLabel = `${index + 1}/${commitGroups.length}`;
 
     await step(`Stage commit ${sequenceLabel}`, async () => {
-      await runGit(["add", "--", ...group.files]);
+      await runGit(["-C", repoRoot, "add", "-A", "--", ...group.files]);
     });
 
     if (!(await hasStagedChanges())) {

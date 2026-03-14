@@ -91,7 +91,7 @@ export async function commitAll(
   repoPath: string,
   message: string
 ): Promise<void> {
-  await git(repoPath, ["add", "."]);
+  await git(repoPath, ["add", "-A"]);
   await git(repoPath, ["commit", "-m", message]);
 }
 
