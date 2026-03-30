@@ -1,6 +1,6 @@
 {
   "name": "gitjazz",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Beautiful AI-powered git workflows for commit, push, pull, and merge.",
   "type": "module",
   "packageManager": "bun@1.2.3",
